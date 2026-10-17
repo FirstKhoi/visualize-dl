@@ -1,0 +1,1050 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Giải phẫu mạng nơ-ron</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 3D bench fills the left, the reading panel docks right (below on phones).
+   Visual grammar: thick block = has weights or changes shape, thin slab = keeps shape, pink = residual path. */
+:root {
+  --scene: #E7EBF0;
+  --surface: #F6F8FA;
+  --fg: #142030;
+  --muted: #586678;
+  --line: #D2D9E1;
+  --grid: #C5CED8;
+  --flow: #8A97A8;
+  --accent: #C2255C;
+  --code-bg: #ECF0F4;
+  --chart-a: #C2255C; --chart-b: #1C7ED6; /* validated pair (dataviz validator): a = with shortcut / positive, b = plain / negative */
+  --c-io: #66768A; --c-embed: #2F9E44; --c-attn: #7048E8; --c-linear: #1C7ED6; --c-conv: #1864AB;
+  --c-norm: #0C8599; --c-act: #E67700; --c-add: #C2255C; --c-pool: #5C940D; --c-block: #3B5BDB;
+  --f-ui: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --scene: #0D1218; --surface: #121A23; --fg: #E4EAF0; --muted: #93A1B1; --line: #243142; --grid: #1D2834; --flow: #5F6E80;
+    --accent: #F06595; --code-bg: #0E151D; --chart-a: #E64980; --chart-b: #339AF0;
+    --c-io: #8D9BAD; --c-embed: #51CF66; --c-attn: #9775FA; --c-linear: #4DABF7; --c-conv: #339AF0;
+    --c-norm: #22B8CF; --c-act: #FFA94D; --c-add: #F06595; --c-pool: #94D82D; --c-block: #748FFC;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --scene: #0D1218; --surface: #121A23; --fg: #E4EAF0; --muted: #93A1B1; --line: #243142; --grid: #1D2834; --flow: #5F6E80;
+  --accent: #F06595; --code-bg: #0E151D; --chart-a: #E64980; --chart-b: #339AF0;
+  --c-io: #8D9BAD; --c-embed: #51CF66; --c-attn: #9775FA; --c-linear: #4DABF7; --c-conv: #339AF0;
+  --c-norm: #22B8CF; --c-act: #FFA94D; --c-add: #F06595; --c-pool: #94D82D; --c-block: #748FFC;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* iPhone landscape would otherwise inflate text */
+body { background: var(--scene); color: var(--fg); font: 400 14px/1.55 var(--f-ui); overflow: hidden; }
+button { font-family: inherit; touch-action: manipulation; } /* no double-tap zoom on iOS */
+input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
+[hidden] { display: none !important; } /* our display: grid/flex rules must not override the hidden attribute (opened as a plain file there is no host reset) */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); height: 100%; }
+.stage { position: relative; min-width: 0; overflow: hidden; }
+.stage canvas { display: block; touch-action: none; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+
+.top { position: absolute; top: 14px; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+.top > * { pointer-events: auto; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 13px/1 var(--f-ui); padding: 8px 12px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--surface); }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; padding: 4px 8px; font-size: 13px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); border-radius: 10px; }
+.crumbs button { border: 0; background: none; color: var(--accent); font: 500 13px/1.4 var(--f-ui); padding: 3px 5px; border-radius: 5px; cursor: pointer; }
+.crumbs button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.crumbs .up { font-weight: 700; padding: 3px 8px; margin-right: 4px; border: 1px solid var(--line); }
+.crumbs [aria-current] { font-weight: 600; padding: 3px 5px; }
+.crumbs .sep { color: var(--muted); }
+.dir { padding: 7px 11px; font: 600 12.5px/1 var(--f-ui); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.dir[aria-pressed="true"] { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+
+.bottom { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); bottom: 12px; z-index: 2; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px 16px; pointer-events: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: 640px; padding: 6px 10px; font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); border-radius: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.legend i.skip { width: 16px; height: 3px; border-radius: 2px; background: var(--accent); vertical-align: 3px; }
+.legend .note { flex-basis: 100%; }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+.hint .touch { display: none; }
+@media (hover: none) { .hint .mouse { display: none; } .hint .touch { display: inline; } }
+
+.tag-anchor { width: 0; height: 0; }
+.tag { position: absolute; top: 0; left: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 1px; padding: 3px 7px; white-space: nowrap; pointer-events: auto; cursor: pointer;
+  font: 500 12px/1.25 var(--f-ui); color: var(--fg); background: color-mix(in srgb, var(--surface) 84%, transparent); border: 1px solid var(--line); border-radius: 6px; }
+.tag b { font: 500 11px var(--f-mono); color: var(--muted); }
+.tag small { font: 400 10.5px/1.25 var(--f-mono); color: var(--muted); }
+.tag em { font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--accent); }
+.tag:hover, .hover .tag { border-color: var(--fg); }
+.on .tag { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.link-tag { font: 500 11px var(--f-mono); color: var(--accent); background: color-mix(in srgb, var(--scene) 80%, transparent); padding: 0 4px; border-radius: 4px; white-space: nowrap; }
+.link-tag.cross { color: var(--c-attn); }
+
+.panel { min-width: 0; overflow-y: auto; overscroll-behavior: contain; padding: 22px max(22px, env(safe-area-inset-right, 0px)) 40px 22px; background: var(--surface); border-left: 1px solid var(--line); }
+.back { display: block; border: 0; background: none; color: var(--accent); font: 500 13px var(--f-ui); padding: 0; margin-bottom: 14px; cursor: pointer; }
+.eyebrow { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.chip { font: 600 11px/1 var(--f-ui); letter-spacing: .07em; text-transform: uppercase; color: var(--c); padding: 5px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c) 14%, transparent); }
+.rep { font: 500 12px var(--f-mono); color: var(--muted); }
+.panel h2 { margin: 0 0 4px; font: 700 22px/1.25 var(--f-ui); letter-spacing: -0.01em; text-wrap: balance; }
+.shape { margin: 0 0 14px; font: 500 12.5px/1.4 var(--f-mono); color: var(--muted); }
+.panel p { margin: 0; max-width: 62ch; }
+.what { font-size: 15px; }
+.panel section { margin-top: 22px; }
+.panel h3 { margin: 0 0 8px; font: 600 11px/1.2 var(--f-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.math { overflow-x: auto; overflow-y: hidden; padding: 1px 0; }
+.math + .math { margin-top: 4px; }
+.kids { display: flex; flex-wrap: wrap; gap: 6px; }
+.kid { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font: 500 13px var(--f-ui); color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.kid:hover { border-color: var(--accent); }
+.kid i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.kids-hint { margin-bottom: 8px !important; font-size: 12.5px; color: var(--muted); }
+.code { position: relative; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; }
+.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.6 var(--f-mono); }
+.copy { position: absolute; top: 6px; right: 6px; padding: 3px 8px; font: 500 11.5px var(--f-ui); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.copy:hover { color: var(--fg); }
+.live-ctl { display: grid; gap: 8px; margin-bottom: 4px; }
+.sent { display: flex; flex-wrap: wrap; gap: 6px; }
+.tok { display: inline-flex; align-items: center; gap: 2px; padding: 3px 3px 3px 10px; font: 600 13px var(--f-ui); background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 999px; }
+.tok button { border: 0; background: none; color: var(--muted); font: 600 15px/1 var(--f-ui); padding: 2px 6px; border-radius: 999px; cursor: pointer; }
+.tok button:disabled { visibility: hidden; }
+.vocab { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.vocab span { margin-right: 4px; }
+.vocab button { padding: 3px 8px; font: 500 12.5px var(--f-ui); color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.vocab button:hover:not(:disabled) { border-color: var(--accent); }
+.vocab button:disabled { opacity: 0.4; cursor: default; }
+.live label { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; }
+.mat { overflow-x: auto; margin-top: 12px; }
+.mat-title { margin-bottom: 4px; font: 600 12px var(--f-mono); color: var(--muted); }
+.mat table { border-collapse: separate; border-spacing: 2px; font: 500 12px var(--f-mono); font-variant-numeric: tabular-nums; }
+.mat th { padding: 2px 4px; font: 500 11px var(--f-ui); color: var(--muted); white-space: nowrap; }
+.mat td { min-width: 38px; padding: 4px 5px; text-align: right; border-radius: 4px; }
+.mat td.neg { text-align: center; color: var(--muted); background: var(--line); }
+.reading { display: grid; gap: 2px; margin-top: 10px !important; font-size: 13px; }
+.vocab button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+/* links between blocks, sources, copy-link */
+.linkbtn { margin-left: auto; padding: 3px 8px; font: 500 11.5px var(--f-ui); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.linkbtn:hover { color: var(--fg); }
+.linkout { width: 100%; margin: -4px 0 10px; padding: 6px 8px; font: 12px var(--f-mono); color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 6px; }
+.xlinks { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.xl { display: block; padding: 6px 10px; text-align: left; font: 400 13px/1.4 var(--f-ui); color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.xl:hover { border-color: var(--accent); }
+.xl b { font-weight: 600; }
+.xl span { color: var(--muted); font-family: var(--f-mono); font-size: 12px; }
+.refs { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; }
+.refs a { color: var(--accent); }
+.refs span { color: var(--muted); }
+
+/* block search (Cmd+F / Ctrl+F): a compact field in the top bar that widens when used; results drop down only once you type */
+.search { position: relative; }
+.search input { width: 150px; padding: 7px 10px; font: 500 13px var(--f-ui); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; transition: width 0.15s; }
+.search input::placeholder { color: var(--muted); }
+.search input:focus { width: min(280px, 70vw); outline: 2px solid var(--accent); outline-offset: 0; }
+.search-list { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5; display: grid; gap: 2px; width: min(420px, calc(100vw - 32px)); max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); }
+@media (hover: none) { .search input { font-size: 16px; } } /* iOS zooms into fields under 16px */
+@media (prefers-reduced-motion: reduce) { .search input { transition: none; } }
+.fr { display: grid; gap: 1px; padding: 7px 10px; text-align: left; color: var(--fg); background: none; border: 0; border-radius: 6px; cursor: pointer; }
+.fr[aria-selected="true"], .fr:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.fr-name { font: 600 14px var(--f-ui); }
+.fr-name i { font: 500 12px var(--f-mono); color: var(--muted); font-style: normal; }
+.fr-trail { font-size: 12px; color: var(--muted); }
+.finder-empty { margin: 0; padding: 4px 10px; font-size: 12.5px; color: var(--muted); }
+
+/* toy convolution */
+.cwrap { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-top: 12px; }
+.cgrid { border-collapse: separate; border-spacing: 2px; }
+.cgrid td { padding: 0; }
+.cgrid button, .cgrid span { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; font: 500 11px var(--f-mono); font-variant-numeric: tabular-nums; color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
+.cgrid.in button.on { background: var(--fg); color: var(--surface); border-color: var(--fg); }
+.cgrid.in button.rf { outline: 2px solid var(--accent); outline-offset: -1px; }
+.cgrid.out button { width: 38px; }
+.cgrid.out button.sel { outline: 2px solid var(--fg); outline-offset: -1px; }
+.cgrid span { cursor: default; width: 34px; }
+
+/* gradient experiment */
+.sl { display: grid; gap: 2px; font-size: 13px; }
+.sl span { display: flex; justify-content: space-between; gap: 8px; }
+.sl output { font: 600 12.5px var(--f-mono); }
+.sl input { width: 100%; margin: 0; }
+.chart { position: relative; margin-top: 12px; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.chart .legend-row { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 6px; font-size: 12.5px; color: var(--muted); }
+.chart .legend-row i { display: inline-block; width: 16px; height: 3px; margin-right: 6px; vertical-align: 3px; border-radius: 2px; }
+.tip { position: absolute; top: 0; padding: 5px 8px; font: 500 12px/1.4 var(--f-mono); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 2px 8px rgb(0 0 0 / 0.12); pointer-events: none; white-space: nowrap; }
+.exp details { margin-top: 10px; font-size: 13px; }
+.exp summary { cursor: pointer; color: var(--accent); }
+.exp details table { margin-top: 6px; border-collapse: collapse; font: 500 12px var(--f-mono); font-variant-numeric: tabular-nums; }
+.exp details td, .exp details th { padding: 2px 10px 2px 0; text-align: right; }
+.exp details th { font: 500 11px var(--f-ui); color: var(--muted); }
+
+/* upright tablets (iPad up to 11") and upright phones: panel moves under the 3D view */
+@media (max-width: 900px) and (orientation: portrait) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 55% 45%; }
+  .panel { padding: 18px max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px)); border-left: 0; border-top: 1px solid var(--line); }
+}
+/* narrow screens: model tabs scroll instead of wrapping */
+@media (max-width: 900px) {
+  .seg { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; }
+  .seg button { padding: 7px 10px; font-size: 12.5px; white-space: nowrap; }
+  .hint, .legend .note { display: none; }
+}
+/* phones held sideways: keep 3D and panel side by side, 3D gets most of the width */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app { grid-template-columns: minmax(0, 1fr) minmax(250px, 40%); }
+  .panel { padding: 14px max(14px, env(safe-area-inset-right, 0px)) 24px 16px; }
+  .top { top: 8px; gap: 6px; }
+}
+/* small screens: the top bar stays short — breadcrumb on one scrolling line, reverse toggle as an icon */
+@media (max-width: 600px), (max-height: 500px) {
+  .crumbs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; white-space: nowrap; }
+  .dir-label { display: none; }
+}
+/* phones either way up: labels shrink to one line; the legend gives way to the 3D view */
+@media (max-width: 600px), (max-height: 500px) {
+  .bottom { display: none; } /* the panel's colour-dotted list already says what each block is */
+  .tag { padding: 2px 5px; font-size: 10.5px; }
+  .tag small, .tag em { display: none; }
+  .link-tag { font-size: 9.5px; }
+}
+</style>
+
+<div class="app">
+  <main class="stage" id="view" aria-label="Mô hình 3D. Kéo để xoay, cuộn để thu phóng, nhấp vào khối để mở.">
+    <div class="top">
+      <div class="seg" id="models" aria-label="Chọn mạng"></div>
+      <div class="search" role="search">
+        <input id="find-q" type="search" placeholder="Tìm khối…" autocomplete="off" spellcheck="false" aria-label="Tìm khối" aria-controls="find-list" aria-expanded="false">
+        <div class="search-list" id="find-list" role="listbox" aria-label="Kết quả tìm khối" hidden></div>
+      </div>
+      <button type="button" class="dir" id="dir" aria-pressed="false" aria-label="Chiều ngược" title="Cho hạt chạy ngược như gradient trong lan truyền ngược">⇄<span class="dir-label"> Chiều ngược</span></button>
+      <nav class="crumbs" id="crumbs" aria-label="Vị trí đang xem"></nav>
+    </div>
+    <div class="bottom">
+      <div class="legend" id="legend"></div>
+      <p class="hint"><span class="mouse">Nhấp khối để phân rã · Kéo để xoay · Cuộn để thu phóng · Esc để lùi</span><span class="touch">Chạm khối để phân rã · Kéo một ngón để xoay · Chụm hai ngón để thu phóng</span></p>
+    </div>
+  </main>
+  <aside class="panel" id="panel" aria-live="polite"></aside>
+</div>
+
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(', '\\)']] },
+  svg: { fontCache: 'global', mtextInheritFont: true },
+  options: { enableMenu: false },
+  startup: { typeset: false, pageReady: () => MathJax.startup.defaultPageReady().then(() => MathJax.typesetPromise([document.getElementById('panel')])) }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"></script>
+<!-- import maps need Safari/iOS 16.4+; this shim only activates on older browsers -->
+<script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.8.3/dist/es-module-shims.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script src="blocks.js"></script>
+<script src="live.js"></script>
+<script src="models/transformer.js"></script>
+<script src="models/llm.js"></script>
+<script src="models/vit.js"></script>
+<script src="models/resnet.js"></script>
+<script src="models/lstm.js"></script>
+<script src="models/unet.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+// MODELS, SLAB, BALL come from blocks.js and models/*.js (classic scripts above)
+
+// ---------- scene ----------
+const CAT = { io: 'Dữ liệu', shape: 'Đổi shape', embed: 'Embedding', attn: 'Attention', linear: 'Tuyến tính', conv: 'Tích chập', norm: 'Chuẩn hoá', act: 'Kích hoạt', add: 'Cộng residual', pool: 'Pooling', block: 'Khối' };
+const cv = c => c === 'shape' ? 'io' : c;
+const SLABS = new Set(['act', 'norm', 'add']);
+const V3 = THREE.Vector3;
+const GAP = 0.95, STUB = 0.9;
+const VIEW = new V3(0.12, 0.5, 1).normalize(); // near-frontal so rows read left → right; elevation keeps the 3D
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const view = document.getElementById('view'), panel = document.getElementById('panel');
+const crumbs = document.getElementById('crumbs'), legend = document.getElementById('legend'), topBar = document.querySelector('.top');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.prepend(renderer.domElement);
+const css = new CSS2DRenderer();
+css.domElement.className = 'labels';
+renderer.domElement.after(css.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 300);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = !reduce;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.62;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(6, 12, 8);
+scene.add(sun);
+
+let theme, grid;
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement), c = k => new THREE.Color(cs.getPropertyValue(k).trim());
+  theme = { scene: c('--scene'), grid: c('--grid'), flow: c('--flow'), accent: c('--accent'), surface: c('--surface'), fg: c('--fg'), line: c('--line'), chartA: c('--chart-a'), chartB: c('--chart-b'), cat: k => c('--c-' + cv(k)) };
+  theme.dark = theme.scene.getHSL({}).l < 0.5;
+  scene.background = theme.scene;
+  const y = grid ? grid.position.y : -1.5;
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+  grid = new THREE.GridHelper(80, 80, theme.grid, theme.grid);
+  grid.position.y = y;
+  scene.add(grid);
+}
+
+// ---------- level building ----------
+const sizeOf = nd => nd.size || (SLABS.has(nd.cat) ? SLAB : [1.2, 1.5, 1.3]);
+const track = (o, m) => { m.userData.base = m.opacity; m.userData.dw = m.depthWrite; o.mats.push(m); return m; };
+
+function makeItem(it, stagger, base) {
+  const nd = it.node, col = theme.cat(nd.cat);
+  const ball = nd.size === BALL;
+  const geo = ball ? new THREE.SphereGeometry(it.half.x, 32, 16) : new THREE.BoxGeometry(it.size.x, it.size.y, it.size.z);
+  it.mats = [];
+  it.mesh = new THREE.Mesh(geo, track(it, new THREE.MeshStandardMaterial({ color: col, roughness: 0.45, metalness: 0.05, transparent: true, opacity: 0.94 })));
+  it.mesh.userData.item = it;
+  it.root = new THREE.Group();
+  it.root.position.copy(it.pos);
+  it.body = new THREE.Group();
+  it.root.add(it.body);
+  it.body.add(it.mesh);
+  if (!ball) {
+    const edge = theme.dark ? col.clone().lerp(new THREE.Color(1, 1, 1), 0.45) : col.clone().multiplyScalar(0.55);
+    it.body.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), track(it, new THREE.LineBasicMaterial({ color: edge, transparent: true, opacity: 0.9 }))));
+  }
+  for (let k = 1; k < Math.min(nd.repeat || 1, 5); k++) { // ghost copies = repeated layers (at most 4, the ×N badge gives the count)
+    const g = new THREE.Mesh(geo, track(it, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, transparent: true, opacity: 0.24 - k * 0.04, depthWrite: false })));
+    g.position.set(0.06 * k, 0.06 * k, -0.18 * k);
+    g.userData.item = it;
+    it.body.add(g);
+  }
+  // box = output tensor, so the label shows the output shape; lshape overrides it ('' hides it)
+  const lshape = nd.lshape ?? (nd.shape && !(SLABS.has(nd.cat) && !nd.children) ? nd.shape.split('→').pop().trim() : '');
+  it.el = document.createElement('div');
+  it.el.className = 'tag-anchor';
+  it.el.innerHTML = `<button class="tag" type="button" tabindex="-1"><span>${nd.tag || nd.name}${nd.repeat > 1 ? ` <b>×${nd.repeat}</b>` : ''}</span>`
+    + (lshape ? `<small>${lshape}</small>` : '')
+    + (nd.children ? `<em>▸ ${nd.hint || nd.children.length + ' phần'}</em>` : '') + '</button>';
+  it.el.firstChild.addEventListener('click', () => pick(it));
+  const label = new CSS2DObject(it.el);
+  label.position.set(0, base - 0.25 - (stagger && it.i % 2 ? 1.3 : 0), 0);
+  it.root.add(label);
+  if (nd.live) { // the step's real matrix floats above the block, always facing the camera
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 384;
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(track(it, new THREE.SpriteMaterial({ map: tex, transparent: true })));
+    sprite.scale.set(1.3, 1.3, 1);
+    sprite.position.y = it.half.y + 0.95;
+    it.root.add(sprite);
+    it.live = { ctx: canvas.getContext('2d'), tex };
+  }
+}
+
+const NRM ={ r: [1, 0, 0], l: [-1, 0, 0], t: [0, 1, 0], d: [0, -1, 0], f: [0, 0, 1], b: [0, 0, -1] };
+// Endpoint -> point p and direction n. Start: curve leaves along n. End: curve arrives against n.
+function endpoint(e, items) {
+  if (e.gap !== undefined) {
+    const it = items[e.gap], prev = items.slice(0, e.gap).reverse().find(x => !x.node.float);
+    const x = prev ? (prev.pos.x + prev.half.x + it.pos.x - it.half.x) / 2 : it.pos.x - it.half.x - STUB / 2;
+    return { p: new V3(x, it.pos.y, it.pos.z), n: new V3(0, 1, 0) };
+  }
+  const it = items[e.i ?? e.stub ?? e.ext], s = new V3(...NRM[e.s]);
+  const face = it.pos.clone().add(s.clone().multiply(it.half));
+  if (e.off) face.add(new V3(...e.off)); // lets two parallel links (LSTM h and c) share one face
+  if (e.stub !== undefined) return { p: face.addScaledVector(s, e.d ?? STUB), n: s.negate() };
+  if (e.ext !== undefined) return { p: face.addScaledVector(s, e.d), n: s.negate() };
+  return { p: face, n: s };
+}
+
+function linksOf(node, items) {
+  if (node.links) return node.links;
+  const row = items.filter(it => !it.node.float).map(it => it.i), L = [];
+  if (!node.noIn) L.push({ a: { stub: row[0], s: 'l' }, b: { i: row[0], s: 'l' } });
+  for (let j = 0; j + 1 < row.length; j++) L.push({ a: { i: row[j], s: 'r' }, b: { i: row[j + 1], s: 'l' } });
+  L.push({ a: { i: row.at(-1), s: 'r' }, b: { stub: row.at(-1), s: 'r' }, label: node.outLabel });
+  for (const [a, b, label] of node.skips || []) L.push({ a: { gap: a }, b: { i: b, s: 't' }, kind: 'skip', label });
+  return L.concat(node.extra || []);
+}
+
+function makeLink(l, items) {
+  const A = endpoint(l.a, items), B = endpoint(l.b, items);
+  let curve;
+  if (l.kind === 'skip') { // residual arc: up, over the skipped blocks, down into the add
+    const hy = Math.max(...items.filter(it => it.i >= l.a.gap && it.i <= l.b.i).map(it => it.pos.y + it.half.y)) + 0.75;
+    curve = new THREE.CatmullRomCurve3([A.p, new V3(A.p.x, hy, A.p.z), new V3(B.p.x, hy, B.p.z), B.p], false, 'centripetal');
+  } else {
+    const k = A.p.distanceTo(B.p) * 0.4;
+    curve = new THREE.CubicBezierCurve3(A.p, A.p.clone().addScaledVector(A.n, k), B.p.clone().addScaledVector(B.n, k), B.p);
+  }
+  // flow/branch = data path, skip/short = residual, cross = encoder memory, loop = generated token fed back
+  const col = { cross: theme.cat('attn'), loop: theme.cat('act'), concat: theme.cat('embed'), skip: theme.accent, short: theme.accent }[l.kind] || theme.flow;
+  const thick = l.kind && l.kind !== 'branch';
+  const o = { kind: l.kind, root: new THREE.Group(), curve, mats: [], len: curve.getLength(), phase: Math.random() };
+  o.root.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 64, thick ? 0.034 : 0.024, 8), track(o, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85 }))));
+  const tan = curve.getTangentAt(1), cone = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.24, 12), track(o, new THREE.MeshBasicMaterial({ color: col, transparent: true })));
+  cone.position.copy(curve.getPointAt(1)).addScaledVector(tan, -0.12);
+  cone.quaternion.setFromUnitVectors(new V3(0, 1, 0), tan);
+  o.root.add(cone);
+  o.pulse = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 8), track(o, new THREE.MeshBasicMaterial({ color: col, transparent: true })));
+  o.pulse.visible = !reduce;
+  o.root.add(o.pulse);
+  if (l.label) {
+    o.el = document.createElement('div');
+    o.el.className = 'link-tag' + (l.kind === 'cross' ? ' cross' : '');
+    o.el.textContent = l.label;
+    const t = new CSS2DObject(o.el);
+    t.position.copy(curve.getPointAt(l.at ?? 0.5)).add(new V3(0, 0.22, 0));
+    o.root.add(t);
+  }
+  return o;
+}
+
+function buildLevel(node) {
+  const group = new THREE.Group();
+  const items = node.children.map((k, i) => ({ node: k, i, size: new V3(...sizeOf(k)), pos: new V3() }));
+  if (node.layout === 'manual') items.forEach(it => it.pos.set(...it.node.pos));
+  else {
+    const row = items.filter(it => !it.node.float);
+    let x = 0;
+    const gap = node.gap ?? GAP;
+    for (const it of row) { it.pos.x = x + it.size.x / 2; x += it.size.x + gap; }
+    row.forEach(it => it.pos.x -= (x - gap) / 2);
+    const top = Math.max(...row.map(it => it.size.y / 2));
+    items.filter(it => it.node.float).forEach(it => it.pos.set(0, top + 1.5 + it.size.y / 2, 0));
+  }
+  const row = node.layout !== 'manual', stagger = row && items.length > 7; // dense rows: alternate label heights so they don't overlap
+  const rowBottom = -Math.max(...items.filter(it => !it.node.float).map(it => it.size.y / 2)); // row labels share one baseline
+  items.forEach(it => { it.half = it.size.clone().multiplyScalar(0.5); makeItem(it, stagger, row && !it.node.float ? rowBottom : -it.half.y); group.add(it.root); });
+  const links = linksOf(node, items).map(l => makeLink(l, items));
+  links.forEach(l => group.add(l.root));
+  const bbox = new THREE.Box3();
+  items.forEach(it => { bbox.expandByPoint(it.pos.clone().sub(it.half)); bbox.expandByPoint(it.pos.clone().add(it.half)); });
+  links.forEach(l => l.curve.getPoints(16).forEach(p => bbox.expandByPoint(p)));
+  items.forEach(it => it.live && bbox.expandByPoint(it.pos.clone().add(new V3(0, it.half.y + 1.65, 0))));
+  const floor = Math.min(...items.map(it => it.pos.y - it.half.y)) - 0.35;
+  bbox.min.y -= stagger ? 2.3 : 0.9; // room for labels hanging under the blocks
+  const L = { node, group, items, links, bbox, floor };
+  paintLive(L);
+  return L;
+}
+
+function setOp(o, a) {
+  o.alpha = a;
+  for (const m of o.mats) m.opacity = m.userData.base * a;
+  o.root.visible = a > 0.005;
+  if (o.el) { o.el.style.opacity = a; o.el.style.visibility = a < 0.05 ? 'hidden' : ''; }
+}
+
+function dispose(L) {
+  scene.remove(L.group);
+  L.group.traverse(o => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); if (o.isCSS2DObject) o.element.remove(); });
+}
+
+// ---------- animation ----------
+const tweens = new Set();
+const ease = t => t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+const sub = (k, a, b) => Math.min(1, Math.max(0, (k - a) / (b - a)));
+const tween = (ms, fn) => new Promise(done => tweens.add({ t0: performance.now(), ms: reduce ? 0 : ms, fn, done }));
+
+function fit(L, ms = 900) {
+  const c = L.bbox.getCenter(new V3()), s = L.bbox.getSize(new V3());
+  const vf = THREE.MathUtils.degToRad(camera.fov) / 2, hf = Math.atan(Math.tan(vf) * camera.aspect);
+  // the top bar covers part of the view: fit into the free band below it (matters on short phone screens)
+  const vh = view.clientHeight || 1, ov = Math.min(vh * 0.45, Math.max(0, topBar.getBoundingClientRect().bottom - view.getBoundingClientRect().top + 6)), free = 1 - ov / vh;
+  const d = Math.max(s.y / 2 / Math.tan(vf) / free, s.x / 2 / Math.tan(hf)) * (camera.aspect < 1 ? 1.3 : 1.12) + s.z / 2; // labels overhang the boxes; narrow screens need more room
+  c.y += (ov / vh) * d * Math.tan(vf); // lifting the target moves the content down into the free band
+  const toPos =c.clone().addScaledVector(VIEW, d), fromPos = camera.position.clone(), fromT = controls.target.clone(), fromY = grid.position.y;
+  return tween(ms, k => {
+    const e = ease(k);
+    camera.position.lerpVectors(fromPos, toPos, e);
+    controls.target.lerpVectors(fromT, c, e);
+    grid.position.y = fromY + (L.floor - fromY) * e;
+  });
+}
+
+function emerge(L, k) { // children fly out of the origin (the parent's spot), staggered
+  const N = L.items.length;
+  L.items.forEach((it, j) => {
+    const e = ease(sub(k, (j / N) * 0.35, (j / N) * 0.35 + 0.65));
+    it.root.position.copy(it.pos).multiplyScalar(e);
+    it.body.scale.setScalar(0.12 + 0.88 * e);
+    setOp(it, e);
+  });
+  L.links.forEach(l => setOp(l, sub(k, 0.75, 1)));
+}
+
+const depthWrite = (it, on) => it.mats.forEach(m => m.depthWrite = on && m.userData.dw);
+
+// ---------- navigation ----------
+let path = [], level = null, sel = null, hover = null, busy = false;
+
+// opens a model at any depth: idx = child indices from the root; a leaf at the end of idx gets selected
+async function enter(model, idx = []) {
+  busy = true;
+  const old = level;
+  path = [MODELS[model]]; sel = hover = null;
+  for (const i of idx) { const k = path.at(-1).children?.[i]; if (!k) break; path.push(k); }
+  const leaf = path.length > 1 && !path.at(-1).children ? path.pop() : null;
+  document.querySelectorAll('[data-model]').forEach(b => b.setAttribute('aria-pressed', b.dataset.model === model));
+  level = buildLevel(path.at(-1));
+  scene.add(level.group);
+  emerge(level, 0);
+  ui();
+  if (old) {
+    fit(level);
+    await tween(350, k => { old.items.forEach(o => setOp(o, 1 - k)); old.links.forEach(l => setOp(l, 1 - k)); });
+    dispose(old);
+  } else fit(level, 0);
+  await tween(1100, k => emerge(level, k));
+  busy = false;
+  if (leaf) select(level.items.find(it => it.node === leaf));
+}
+
+async function drillIn(it) {
+  busy = true;
+  const old = level, c = it.pos.clone();
+  path.push(it.node); sel = hover = null;
+  level = buildLevel(it.node);
+  scene.add(level.group);
+  emerge(level, 0);
+  const shell = level.bbox.getSize(new V3()).divide(it.size); // parent box grows into a shell around its children
+  depthWrite(it, false);
+  ui();
+  fit(level, 1200);
+  await tween(1200, k => {
+    const a = ease(sub(k, 0, 0.45));
+    old.group.position.copy(c).multiplyScalar(-a);
+    old.items.forEach(o => o !== it && setOp(o, 1 - a));
+    old.links.forEach(l => setOp(l, 1 - a));
+    it.body.scale.set(1, 1, 1).lerp(shell, ease(sub(k, 0.15, 0.8)));
+    setOp(it, 1 - sub(k, 0.3, 0.9));
+    if (it.el) it.el.style.opacity = 1 - a;
+    emerge(level, sub(k, 0.3, 1));
+  });
+  dispose(old);
+  busy = false;
+}
+
+async function goTo(depth) {
+  if (busy || depth < 0 || depth >= path.length - 1) return;
+  busy = true;
+  const old = level, child = path[depth + 1];
+  path.length = depth + 1; sel = hover = null;
+  level = buildLevel(path[depth]);
+  scene.add(level.group);
+  const it = level.items.find(x => x.node === child), c = it.pos.clone();
+  const shell = old.bbox.getSize(new V3()).divide(it.size);
+  level.items.forEach(o => setOp(o, 0));
+  level.links.forEach(l => setOp(l, 0));
+  depthWrite(it, false);
+  ui();
+  fit(level, 1100);
+  await tween(1100, k => {
+    emerge(old, 1 - sub(k, 0, 0.6));
+    it.body.scale.copy(shell).lerp(new V3(1, 1, 1), ease(sub(k, 0.15, 0.75)));
+    setOp(it, sub(k, 0.1, 0.6));
+    const a = ease(sub(k, 0.5, 1));
+    level.group.position.copy(c).multiplyScalar(a - 1);
+    level.items.forEach(o => o !== it && setOp(o, a));
+    level.links.forEach(l => setOp(l, a));
+  });
+  depthWrite(it, true);
+  dispose(old);
+  busy = false;
+}
+
+const glow = (it, k) => it && it.mesh.material.emissive.copy(theme.cat(it.node.cat)).multiplyScalar(k);
+
+function select(it) {
+  if (sel) { glow(sel, 0); sel.el.classList.remove('on'); }
+  sel = it;
+  if (it) { glow(it, theme.dark ? 0.45 : 0.3); it.el.classList.add('on'); }
+  syncOwners();
+  renderPanel();
+  saveLoc();
+}
+
+function pick(it) {
+  if (busy || !it || it.alpha < 0.6) return;
+  if (it.node.children) drillIn(it);
+  else select(it === sel ? null : it);
+}
+
+function setHover(it) {
+  if (hover === it) return;
+  if (hover && hover !== sel) glow(hover, 0);
+  hover?.el.classList.remove('hover');
+  hover = it;
+  if (it && it !== sel) glow(it, 0.18);
+  it?.el.classList.add('hover');
+  renderer.domElement.style.cursor = it ? 'pointer' : '';
+}
+
+// ---------- live numbers: toy attention and toy conv from live.js ----------
+const live = { words: [...TOY.PRESETS[0]], causal: false, scale: true, owner: null };
+const conv = { img: TOYCONV.IMAGES['Cạnh dọc'].map(r => [...r]), kernel: 'Sobel dọc', pad: 1, stride: 1, owner: null, pick: null };
+const MAXW = 6;
+const LIVE_M = { qk: r => r.S, scale: r => r.St, mask: r => r.Sm, softmax: r => r.A, sdpa: r => r.A, av: r => r.O };
+const fmtV = v => v === -Infinity ? '−∞' : Number.isInteger(v) ? String(v) : v.toFixed(2);
+const vmax = M => Math.max(1e-9, ...M.flat().filter(Number.isFinite).map(Math.abs));
+const convRun = () => TOYCONV.run(conv.img, TOYCONV.KERNELS[conv.kernel], conv);
+// diverging: positive → chart-a, negative → chart-b, zero = the surface (neutral midpoint)
+const cellBg = (v, max) => `background: color-mix(in srgb, var(${v < 0 ? '--chart-b' : '--chart-a'}) ${Math.round(Math.abs(v) / max * 55)}%, transparent)`;
+
+function paintLive(L) {
+  const memo = {}, tmp = new THREE.Color();
+  for (const it of L.items) if (it.live) {
+    const key = it.node.live, M = key === 'conv' ? (memo.c ??= convRun()).Y : LIVE_M[key](memo.a ??= TOY.run(live.words, live));
+    const { ctx, tex } = it.live, S = ctx.canvas.width, max = vmax(M);
+    const cell = Math.floor((S - 8) / Math.max(M.length, M[0].length)), ox = (S - cell * M[0].length) / 2, oy = (S - cell * M.length) / 2;
+    ctx.clearRect(0, 0, S, S);
+    ctx.font = `600 ${Math.round(cell * 0.3)}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    M.forEach((row, i) => row.forEach((v, j) => {
+      const t = Number.isFinite(v) ? Math.abs(v) / max : 0;
+      ctx.fillStyle = Number.isFinite(v) ? tmp.lerpColors(theme.surface, v < 0 ? theme.chartB : theme.chartA, t).getStyle() : theme.line.getStyle();
+      ctx.fillRect(ox + j * cell + 2, oy + i * cell + 2, cell - 4, cell - 4);
+      ctx.fillStyle = (t > 0.55 ? theme.surface : theme.fg).getStyle();
+      ctx.fillText(fmtV(v), ox + (j + 0.5) * cell, oy + (i + 0.5) * cell);
+    }));
+    tex.needsUpdate = true;
+  }
+}
+
+const matTable = (title, M, rows, cols) => {
+  const max = vmax(M);
+  return `<div class="mat"><div class="mat-title">${title}</div><table><tr><th></th>${cols.map(c => `<th>${c}</th>`).join('')}</tr>`
+    + M.map((row, i) => `<tr><th>${rows[i]}</th>${row.map(v => Number.isFinite(v) ? `<td style="${cellBg(v, max)}">${fmtV(v)}</td>` : '<td class="neg">−∞</td>').join('')}</tr>`).join('') + '</table></div>';
+};
+
+function liveOut(stage) {
+  const r = TOY.run(live.words, live), w = r.words, F = TOY.F, K = TOY.KD;
+  const mats = {
+    sdpa: [['x: đặc trưng của từng từ', r.X, w, F], ['A: trọng số attention', r.A, w, w], ['O = A·V: output', r.O, w, F]],
+    qk: [['Q = x·W_Q (từ này tìm gì)', r.Q, w, K], ['K = x·W_K (từ này là gì)', r.K, w, K], ['S = Q·Kᵀ', r.S, w, w]],
+    scale: [[live.scale ? 'S / √3' : 'S (đang tắt chia √dₖ)', r.St, w, w]],
+    mask: [[live.causal ? 'S̃ + M (mặt nạ nhân quả)' : 'S̃ + M (đang tắt mặt nạ, M = 0)', r.Sm, w, w]],
+    softmax: [['A = softmax(S̃ + M), theo hàng', r.A, w, w]],
+    av: [['V = x (W_V = I)', r.V, w, F], ['O = A·V', r.O, w, F]]
+  }[stage];
+  const pct = v => Math.round(v * 100) + '%';
+  const attn = w.map((t, i) => `<span><b>${t}</b> → ${r.A[i].map((v, j) => [v, w[j]]).sort((a, b) => b[0] - a[0]).slice(0, 2).filter(x => x[0] >= 0.05).map(([v, u]) => `${u} ${pct(v)}`).join(', ')}</span>`);
+  const outs = w.map((t, i) => `<span><b>${t}</b> giờ mang: ${F.map((f, c) => [r.O[i][c], f]).filter(x => x[0] >= 0.25).map(([v, f]) => `${f} ${v.toFixed(2)}`).join(', ') || 'gần như không gì'}</span>`);
+  const reading = { sdpa: attn, softmax: attn, av: outs }[stage];
+  return mats.map(m => matTable(...m)).join('') + (reading ? `<p class="reading">${reading.join('')}</p>` : '');
+}
+
+const liveSent = () => live.words.map((w, i) => `<span class="tok">${w}<button type="button" data-del="${i}" aria-label="Bỏ từ ${w}"${live.words.length < 2 ? ' disabled' : ''}>×</button></span>`).join('');
+
+const liveSection = stage => `<section class="live"><h3>Số chạy thật</h3>
+  <p class="kids-hint">Mô hình đồ chơi chạy ngay trong trang. Mỗi từ có 5 đặc trưng; W_Q và W_K được đặt tay thay vì học, để số đọc được (d_k = 3, W_V = I, không có PE). Đổi câu hoặc bật mặt nạ: mọi ma trận và heatmap 3D cập nhật ngay.</p>
+  <div class="live-ctl">
+    <div class="sent" aria-label="Câu đang chạy">${liveSent()}</div>
+    <div class="vocab"><span>Thêm từ:</span>${Object.keys(TOY.VOCAB).map(w => `<button type="button" data-add="${w}"${live.words.length >= MAXW ? ' disabled' : ''}>${w}</button>`).join('')}</div>
+    <div class="vocab"><span>Câu mẫu:</span>${TOY.PRESETS.map((p, k) => `<button type="button" data-preset="${k}">${p.join(' ')}</button>`).join('')}</div>
+    <label><input type="checkbox" id="live-causal"${live.causal ? ' checked' : ''}> Mặt nạ nhân quả (mỗi từ chỉ nhìn các từ phía trước)</label>
+    <label><input type="checkbox" id="live-scale"${live.scale ? ' checked' : ''}> Chia √dₖ</label>
+  </div>
+  <div class="live-out">${liveOut(stage)}</div></section>`;
+
+function refreshLive() {
+  const nd = sel ? sel.node : path.at(-1);
+  if (nd.live && panel.querySelector('.live')) {
+    panel.querySelector('.sent').innerHTML = liveSent();
+    panel.querySelectorAll('[data-add]').forEach(b => b.disabled = live.words.length >= MAXW);
+    panel.querySelector('.live-out').innerHTML = liveOut(nd.live);
+  }
+  paintLive(level);
+}
+
+// toy conv: click an input pixel to toggle it, click an output cell to see its 9 products
+const KNOTE = {
+  'Sobel dọc': 'Dương khi ảnh sáng dần từ trái sang phải, âm khi tối dần, 0 ở vùng phẳng: bắt cạnh dọc.',
+  'Sobel ngang': 'Dương khi ảnh sáng dần từ trên xuống dưới: bắt cạnh ngang.',
+  'Làm mờ': 'Trung bình 9 ô quanh mỗi điểm: làm mềm, xoá chi tiết nhỏ.',
+  'Làm nét': 'Tâm trừ đi 4 ô kề bên: làm nổi chỗ đổi độ sáng.',
+  'Đồng nhất': 'Chỉ lấy đúng ô ở giữa: output là bản sao của input (khi có đệm).'
+};
+function convOut() {
+  const r = convRun(), K = TOYCONV.KERNELS[conv.kernel], max = vmax(r.Y);
+  if (!conv.pick || conv.pick[0] >= r.n || conv.pick[1] >= r.n) { // default: the strongest response
+    let best = [0, 0];
+    r.Y.forEach((row, i) => row.forEach((v, j) => { if (Math.abs(v) > Math.abs(r.Y[best[0]][best[1]])) best = [i, j]; }));
+    conv.pick = best;
+  }
+  const [pi, pj] = conv.pick, terms = r.terms[pi][pj], rf = new Set(terms.map(t => t.r + ',' + t.c));
+  const inGrid = conv.img.map((row, i) => `<tr>${row.map((v, j) => `<td><button type="button" data-px="${i},${j}" class="${v ? 'on' : ''}${rf.has(i + ',' + j) ? ' rf' : ''}" aria-label="Pixel hàng ${i + 1} cột ${j + 1}: ${v}">${v}</button></td>`).join('')}</tr>`).join('');
+  const kMax = vmax(K), kGrid = K.map(row => `<tr>${row.map(w => `<td><span style="${cellBg(w, kMax)}">${fmtV(w)}</span></td>`).join('')}</tr>`).join('');
+  const outGrid = r.Y.map((row, i) => `<tr>${row.map((v, j) => `<td><button type="button" data-out="${i},${j}" class="${i === pi && j === pj ? 'sel' : ''}" style="${cellBg(v, max)}" aria-label="Output hàng ${i + 1} cột ${j + 1}: ${fmtV(v)}">${fmtV(v)}</button></td>`).join('')}</tr>`).join('');
+  const nz = terms.filter(t => t.x && t.w), padded = terms.filter(t => t.r < 0 || t.c < 0 || t.r >= TOYCONV.N || t.c >= TOYCONV.N).length;
+  return `<div class="cwrap"><div><div class="mat-title">Ảnh vào 8×8</div><table class="cgrid in">${inGrid}</table></div>`
+    + `<div><div class="mat-title">Bộ lọc 3×3</div><table class="cgrid">${kGrid}</table></div></div>`
+    + `<div class="mat-title" style="margin-top: 12px">Output ${r.n}×${r.n}</div><table class="cgrid out">${outGrid}</table>`
+    + `<p class="reading"><span>H_out = ⌊(8 + 2·${conv.pad} − 3) / ${conv.stride}⌋ + 1 = ${r.n}</span>`
+    + `<span><b>Ô (${pi + 1}, ${pj + 1})</b> = ${nz.length ? nz.map(t => `${t.x}·${fmtV(t.w)}`).join(' + ') : '0'} = <b>${fmtV(r.Y[pi][pj])}</b>${nz.length < 9 ? ' (các tích bằng 0 không ghi ra)' : ''}${padded ? `; ${padded} ô của cửa sổ nằm trên phần đệm (giá trị 0)` : ''}.</span>`
+    + `<span>${KNOTE[conv.kernel]}</span></p>`;
+}
+const convSection = () => `<section class="live conv"><h3>Số chạy thật</h3>
+  <p class="kids-hint">Ảnh đồ chơi 8×8 và một bộ lọc 3×3, tính đúng như nn.Conv2d. Bấm ô ảnh để tô hoặc xoá; bấm ô output để xem nó được tính từ 9 ô nào (viền màu ở ảnh vào). Heatmap 3D trên khối cũng đổi theo.</p>
+  <div class="live-ctl">
+    <div class="vocab"><span>Ảnh mẫu:</span>${Object.keys(TOYCONV.IMAGES).map(k => `<button type="button" data-img="${k}">${k}</button>`).join('')}</div>
+    <div class="vocab"><span>Bộ lọc:</span>${Object.keys(TOYCONV.KERNELS).map(k => `<button type="button" data-kernel="${k}" aria-pressed="${k === conv.kernel}">${k}</button>`).join('')}</div>
+    <label><input type="checkbox" id="conv-pad"${conv.pad ? ' checked' : ''}> Đệm 1 pixel (padding = 1)</label>
+    <label><input type="checkbox" id="conv-stride"${conv.stride > 1 ? ' checked' : ''}> Bước 2 (stride = 2)</label>
+  </div>
+  <div class="conv-out">${convOut()}</div></section>`;
+function refreshConv() {
+  const box = panel.querySelector('.conv-out');
+  if (box) { box.innerHTML = convOut(); panel.querySelectorAll('[data-kernel]').forEach(b => b.setAttribute('aria-pressed', b.dataset.kernel === conv.kernel)); }
+  paintLive(level);
+}
+
+// gradient experiment: how much gradient survives L layers (or T time steps) going backwards
+const exp = { res: { L: 50, sigma: 0.9, beta: 0.2 }, rnn: { T: 50, sigma: 1, f: 0.95 } };
+const EXP = {
+  res: { len: s => s.L, run: GRAD.res, names: ['Mạng thường', 'Có đường tắt'], unit: 'lớp',
+    intro: 'Gradient chạy ngược từ loss về input. Mỗi lớp nhân nó với ma trận Jacobian của lớp đó (ở đây là ma trận ngẫu nhiên 32 chiều). Mạng thường: J = σ·W. Có đường tắt: J = I + β·W, trong đó I chính là đường tắt.',
+    sliders: [['L', 'Số lớp', 10, GRAD.MAX, 1], ['sigma', 'σ, độ lớn mỗi lớp của mạng thường', 0.5, 1.5, 0.05], ['beta', 'β, độ lớn nhánh F khi có đường tắt', 0, 1, 0.05]],
+    note: 'Mạng thường như đi trên dây: σ phải đúng bằng 1, lệch một chút là gradient tắt hẳn hoặc bùng nổ theo cấp số nhân. Có đường tắt, gradient luôn giữ quanh 1 vì phần I đi thẳng qua mọi lớp; nó chỉ tăng chậm, khoảng (1 + β²) mũ L/2, và ResNet thật giữ β nhỏ nhờ BatchNorm.' },
+  rnn: { len: s => s.T, run: GRAD.rnn, names: ['RNN thường', 'LSTM, qua bộ nhớ c'], unit: 'bước',
+    intro: 'Gradient lùi theo thời gian. RNN thường: mỗi bước nhân với cùng một W (×σ) và đạo hàm tanh (luôn nhỏ hơn 1). LSTM: đi dọc bộ nhớ c chỉ nhân với cổng quên f.',
+    sliders: [['T', 'Số bước lùi', 10, GRAD.MAX, 1], ['sigma', 'σ, độ lớn W của RNN thường', 0.5, 2, 0.05], ['f', 'f, cổng quên của LSTM', 0.5, 1, 0.01]],
+    note: 'RNN thường tắt ngay cả khi σ = 1 vì đạo hàm tanh luôn nhỏ hơn 1; tăng σ thì đến một ngưỡng nó chuyển sang bùng nổ. LSTM giảm đúng f mũ T, và mạng tự học giữ f gần 1 cho thông tin cần nhớ lâu.' }
+};
+const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+const sup = e => String(e).split('').map(ch => SUP[ch]).join('');
+const pow10 = e => e === 0 ? '1' : e === 1 ? '10' : '10' + sup(e);
+const fmtG = v => { if (v < 1e4 && v >= 1e-2) return v.toFixed(v < 1 ? 3 : 2); const [mant, e] = v.toExponential(1).split('e'); return `${mant}·10${sup(+e)}`; };
+let chartNow = null; // geometry of the chart on screen, for the hover crosshair
+
+function expOut(kind) {
+  const E = EXP[kind], s = exp[kind], L = E.len(s), d = E.run(s), series = [d.plain, d.skip];
+  const lg = series.map(a => a.map(v => Math.log10(Math.max(v, 1e-30))));
+  const lo = Math.max(-15, Math.min(-1, Math.floor(Math.min(...lg.flat())))), hi = Math.min(15, Math.max(1, Math.ceil(Math.max(...lg.flat()))));
+  const W = 360, H = 200, m = { l: 46, r: 96, t: 8, b: 30 };
+  const x = k => m.l + (k / L) * (W - m.l - m.r), y = v => m.t + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - m.t - m.b);
+  const step = Math.max(1, Math.ceil((hi - lo) / 5)), ticks = [];
+  for (let e = hi; e >= lo; e -= step) ticks.push(e);
+  const col = i => `var(${i ? '--chart-a' : '--chart-b'})`;
+  // direct labels at the right end, nudged apart when the two lines end close together
+  let ya = [y(lg[0][L]), y(lg[1][L])];
+  if (Math.abs(ya[0] - ya[1]) < 14) { const mid = (ya[0] + ya[1]) / 2, up = ya[0] < ya[1] ? 0 : 1; ya[up] = mid - 7; ya[1 - up] = mid + 7; }
+  chartNow = { kind, L, x, y, lg, series, m, W, H };
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Độ lớn gradient theo số ${E.unit}, thang log: ${E.names[0]} và ${E.names[1]}">`
+    + ticks.map(e => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(e)}" y2="${y(e)}" stroke="var(--line)" stroke-width="1"/><text x="${m.l - 6}" y="${y(e) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${pow10(e)}</text>`).join('')
+    + [0, Math.round(L / 2), L].map(k => `<text x="${x(k)}" y="${H - m.b + 16}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${k}</text>`).join('')
+    + `<text x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle" font-size="10.5" fill="var(--muted)">số ${E.unit} tính từ loss →</text>`
+    + lg.map((a, i) => `<path d="M${a.map((v, k) => `${x(k).toFixed(1)},${y(v).toFixed(1)}`).join('L')}" fill="none" stroke="${col(i)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('')
+    + lg.map((a, i) => `<circle cx="${x(L)}" cy="${y(a[L])}" r="4" fill="${col(i)}" stroke="var(--surface)" stroke-width="2"/><text x="${x(L) + 8}" y="${ya[i] + 4}" font-size="11" fill="var(--fg)">${E.names[i]}</text>`).join('')
+    + `<line class="xh" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/>`
+    + `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" class="hit"/></svg>`;
+  const ratio = v => v < 1 ? `nhỏ đi ${fmtG(1 / v)} lần` : `lớn lên ${fmtG(v)} lần`;
+  const rows = Array.from({ length: 11 }, (_, i) => Math.round(i * L / 10)).filter((k, i, a) => a.indexOf(k) === i);
+  return `<div class="chart"><div class="legend-row">${E.names.map((nm, i) => `<span><i style="background: ${col(i)}"></i>${nm}</span>`).join('')}</div>${svg}<div class="tip" hidden></div></div>`
+    + `<p class="reading"><span>Sau ${L} ${E.unit}: ${E.names[0]} còn <b>${fmtG(d.plain[L])}</b> (${ratio(d.plain[L])}); ${E.names[1]} còn <b>${fmtG(d.skip[L])}</b> (${ratio(d.skip[L])}).</span><span>${E.note}</span></p>`
+    + `<details><summary>Xem dạng bảng</summary><table><tr><th>${E.unit}</th><th>${E.names[0]}</th><th>${E.names[1]}</th></tr>${rows.map(k => `<tr><td>${k}</td><td>${fmtG(d.plain[k])}</td><td>${fmtG(d.skip[k])}</td></tr>`).join('')}</table></details>`;
+}
+const expSection = kind => `<section class="exp"><h3>Thí nghiệm: gradient đi ngược</h3>
+  <p class="kids-hint">${EXP[kind].intro} Kéo thanh trượt, biểu đồ tính lại ngay (trục dọc thang log).</p>
+  <div class="live-ctl">${EXP[kind].sliders.map(([k, label, min, max, st]) => `<label class="sl" for="e-${kind}-${k}"><span>${label}<output id="o-${kind}-${k}">${exp[kind][k]}</output></span><input type="range" id="e-${kind}-${k}" data-exp="${kind}" data-key="${k}" min="${min}" max="${max}" step="${st}" value="${exp[kind][k]}"></label>`).join('')}</div>
+  <div class="exp-out">${expOut(kind)}</div></section>`;
+
+function chartHover(e) {
+  const svg = e.target.closest?.('.chart svg');
+  if (!svg || !chartNow) return;
+  const box = svg.getBoundingClientRect(), sx = (e.clientX - box.left) * chartNow.W / box.width;
+  const { L, x, m, W, series, kind } = chartNow, k = Math.max(0, Math.min(L, Math.round((sx - m.l) / (W - m.l - m.r) * L)));
+  const xh = svg.querySelector('.xh'), tip = svg.parentElement.querySelector('.tip');
+  xh.setAttribute('x1', x(k)); xh.setAttribute('x2', x(k)); xh.setAttribute('visibility', 'visible');
+  tip.hidden = false;
+  tip.innerHTML = `${k} ${EXP[kind].unit}<br>${EXP[kind].names[0]}: ${fmtG(series[0][k])}<br>${EXP[kind].names[1]}: ${fmtG(series[1][k])}`;
+  const px = x(k) * box.width / W;
+  tip.style.left = Math.min(box.width - tip.offsetWidth, Math.max(0, px + 10)) + 'px';
+  tip.style.top = '28px';
+}
+panel.addEventListener('pointermove', chartHover);
+panel.addEventListener('pointerdown', chartHover);
+panel.addEventListener('pointerleave', () => { panel.querySelectorAll('.chart .tip').forEach(t => t.hidden = true); panel.querySelectorAll('.chart .xh').forEach(l => l.setAttribute('visibility', 'hidden')); });
+
+panel.addEventListener('input', e => {
+  const t = e.target;
+  if (!t.dataset.exp) return;
+  exp[t.dataset.exp][t.dataset.key] = +t.value;
+  panel.querySelector(`#o-${t.dataset.exp}-${t.dataset.key}`).textContent = t.value;
+  panel.querySelector('.exp-out').innerHTML = expOut(t.dataset.exp);
+});
+
+panel.addEventListener('change', e => {
+  if (e.target.id === 'live-causal') live.causal = e.target.checked;
+  else if (e.target.id === 'live-scale') live.scale = e.target.checked;
+  else if (e.target.id === 'conv-pad') { conv.pad = e.target.checked ? 1 : 0; return refreshConv(); }
+  else if (e.target.id === 'conv-stride') { conv.stride = e.target.checked ? 2 : 1; return refreshConv(); }
+  else return;
+  refreshLive();
+});
+
+// the block on screen decides the defaults: attention mask by its kind, conv padding/stride by its layer
+function syncOwners() {
+  const shown = sel ? sel.node : path.at(-1);
+  const a = [...path].reverse().find(nd => nd.live === 'sdpa') || level.items.find(it => it.node.live === 'sdpa')?.node;
+  if (a && a !== live.owner) { live.owner = a; live.causal = !!a.liveCausal; }
+  const c = shown.conv ? shown : level.items.find(it => it.node.conv)?.node;
+  if (c && c !== conv.owner) { conv.owner = c; conv.pad = c.conv.pad; conv.stride = c.conv.stride; conv.pick = null; }
+  paintLive(level);
+}
+
+// ---------- UI ----------
+const esc =s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const sec = (h, body) => body ? `<section><h3>${h}</h3>${body}</section>` : '';
+const nameOf = nd => nd.tag || nd.name;
+
+function renderPanel() {
+  const nd = sel ? sel.node : path.at(-1), i = nd.info;
+  window.MathJax?.typesetClear?.([panel]);
+  panel.innerHTML = (sel ? `<button class="back" type="button" data-act="back">← Về ${path.at(-1).name}</button>` : '')
+    + `<div class="eyebrow"><span class="chip" style="--c: var(--c-${cv(nd.cat)})">${CAT[nd.cat]}</span>${nd.repeat > 1 ? `<span class="rep">lặp ×${nd.repeat}</span>` : ''}<button class="linkbtn" type="button" data-act="link">Sao chép link</button></div>`
+    + `<h2>${nd.name}</h2>` + (nd.shape ? `<p class="shape">${nd.shape}</p>` : '') + `<p class="what">${i.what}</p>`
+    + sec('Công thức', i.formula && i.formula.map(f => `<div class="math">\\[${f}\\]</div>`).join(''))
+    + (nd.live === 'conv' ? convSection() : nd.live ? liveSection(nd.live) : '')
+    + (nd.exp ? expSection(nd.exp) : '')
+    + sec('Vì sao như vậy', i.why && `<p>${i.why}</p>`)
+    + sec('Ví dụ số', i.example && `<p>${i.example}</p>`)
+    + sec('Tham số', i.params && `<p>${i.params}</p>`)
+    + sec('Bên trong gồm', !sel && nd.children && `<p class="kids-hint">Nhấp một khối trong 3D hoặc chọn ở đây. Khối có dấu › còn mở tiếp được.</p><div class="kids">`
+        + nd.children.map((k, j) => `<button class="kid" type="button" data-k="${j}"><i style="background: var(--c-${cv(k.cat)})"></i>${nameOf(k)}${k.repeat > 1 ? ` ×${k.repeat}` : ''}${k.children ? ' ›' : ''}</button>`).join('') + '</div>')
+    + sec('PyTorch', i.code && `<div class="code"><pre><code>${esc(i.code)}</code></pre><button class="copy" type="button" data-act="copy">Sao chép</button></div>`)
+    + sec('Cũng xuất hiện ở', alsoIn(nd))
+    + sec('Nguồn', nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${r.t}</a>${r.note ? ` <span>(${r.note})</span>` : ''}</li>`).join('')}</ul>`);
+  panel.scrollTop = 0;
+  window.MathJax?.typesetPromise?.([panel]).catch(() => {});
+}
+
+panel.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.k !== undefined) pick(level.items[+b.dataset.k]);
+  else if (b.dataset.add) { if (live.words.length < MAXW) live.words.push(b.dataset.add); refreshLive(); }
+  else if (b.dataset.del !== undefined) { if (live.words.length > 1) live.words.splice(+b.dataset.del, 1); refreshLive(); }
+  else if (b.dataset.preset !== undefined) { live.words = [...TOY.PRESETS[+b.dataset.preset]]; refreshLive(); }
+  else if (b.dataset.img) { conv.img = TOYCONV.IMAGES[b.dataset.img].map(r => [...r]); conv.pick = null; refreshConv(); }
+  else if (b.dataset.kernel) { conv.kernel = b.dataset.kernel; conv.pick = null; refreshConv(); }
+  else if (b.dataset.px) { const [i, j] = b.dataset.px.split(',').map(Number); conv.img[i][j] ^= 1; refreshConv(); }
+  else if (b.dataset.out) { conv.pick = b.dataset.out.split(',').map(Number); refreshConv(); }
+  else if (b.dataset.jump) jump(b.dataset.jump);
+  else if (b.dataset.act === 'link') copyLink(b);
+  else if (b.dataset.act === 'back') select(null);
+  else if (b.dataset.act === 'copy') {
+    const code = (sel ? sel.node : path.at(-1)).info.code;
+    let p;
+    try { p = navigator.clipboard.writeText(code); } catch { p = Promise.reject(); }
+    p.then(() => { b.textContent = 'Đã chép'; }, () => {
+      const r = document.createRange();
+      r.selectNodeContents(panel.querySelector('.code code'));
+      getSelection().removeAllRanges(); getSelection().addRange(r);
+      b.textContent = 'Đã chọn, nhấn Ctrl/⌘ C';
+    });
+  }
+});
+
+function ui() {
+  crumbs.hidden = path.length < 2; // at the root the selected model tab already says where you are
+  crumbs.innerHTML =(path.length > 1 ? `<button class="up" type="button" data-d="${path.length - 2}" aria-label="Lên một cấp">↑</button>` : '')
+    + path.map((nd, d) => d < path.length - 1 ? `<button type="button" data-d="${d}">${nameOf(nd)}</button>` : `<span aria-current="location">${nameOf(nd)}</span>`).join('<span class="sep" aria-hidden="true">›</span>');
+  renderLegend();
+  syncOwners();
+  renderPanel();
+  saveLoc();
+}
+
+function renderLegend() {
+  const cats = [...new Set(level.items.map(it => it.node.cat))];
+  legend.innerHTML = cats.map(c => `<span><i style="background: var(--c-${cv(c)})"></i>${CAT[c]}</span>`).join('')
+    + (level.links.some(l => l.kind === 'skip' || l.kind === 'short') ? '<span><i class="skip"></i>Đường tắt residual</span>' : '')
+    + (level.links.some(l => l.kind === 'loop') ? '<span><i class="skip" style="background: var(--c-act)"></i>Vòng lặp sinh token</span>' : '')
+    + (level.links.some(l => l.kind === 'concat') ? '<span><i class="skip" style="background: var(--c-embed)"></i>Đường tắt nối (concat)</span>' : '')
+    + '<span class="note">Khối dày: có trọng số hoặc đổi shape. Lát mỏng: giữ nguyên shape. Bóng mờ phía sau: lớp lặp lại.</span>';
+  if (backward) legend.innerHTML += '<span class="note">Chiều ngược: hạt là gradient, chạy từ loss về input. Ở mỗi phép cộng, gradient được chép nguyên sang cả hai nhánh, nên đường tắt (hạt to) mang nó thẳng về các lớp đầu.</span>';
+}
+
+let backward = false;
+const dirBtn = document.getElementById('dir');
+dirBtn.addEventListener('click', () => { backward = !backward; dirBtn.setAttribute('aria-pressed', backward); renderLegend(); });
+
+crumbs.addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (b) goTo(+b.dataset.d); });
+document.getElementById('models').innerHTML = Object.entries(MODELS).map(([k, m]) => `<button type="button" id="m-${k}" data-model="${k}" aria-pressed="false">${m.label}</button>`).join('');
+document.querySelectorAll('[data-model]').forEach(b => b.addEventListener('click', () => { if (!busy && path[0] !== MODELS[b.dataset.model]) enter(b.dataset.model); }));
+const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+addEventListener('keydown', e => {
+  // block search: Cmd+F on Apple, Ctrl+F elsewhere (replaces the browser's find-in-page while the page has focus)
+  if ((isMac ? e.metaKey : e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); openFind(); return; }
+  if (e.target === findQ) return; // typing in the search field
+  if (e.key === 'Escape') sel ? select(null) : goTo(path.length - 2);
+});
+
+// ---------- every block of every model: search, "also appears in", links ----------
+const ARTIFACT_URL = 'https://claude.ai/artifact/CUkHpKx3VgobxBM3DjXcGa'; // build-pages.sh blanks this: other hosts copy their own address
+const INDEX = [];
+for (const [key, root] of Object.entries(MODELS)) (function walk(nd, idx, trail) {
+  INDEX.push({ key, nd, idx, trail });
+  nd.children?.forEach((k, i) => walk(k, [...idx, i], [...trail, nameOf(k)]));
+})(root, [], [root.label]);
+const CONCEPT_OF = {};
+for (const [label, names] of Object.entries(CONCEPTS)) for (const nm of names) (CONCEPT_OF[nm] ||= []).push(label);
+// self-check: every name in CONCEPTS must exist, otherwise a link silently disappears
+console.assert(Object.keys(CONCEPT_OF).every(nm => INDEX.some(e => e.nd.name === nm)), 'CONCEPTS names a block that does not exist');
+// collapse repeats (24 BatchNorms in ResNet) into one entry: first place + count
+function groups(entries, keyOf) {
+  const m = new Map();
+  for (const e of entries) { const k = keyOf(e), g = m.get(k); if (g) g.n++; else m.set(k, { ...e, n: 1 }); }
+  return [...m.values()];
+}
+const modelKey = () => Object.keys(MODELS).find(k => MODELS[k] === path[0]);
+const locCode = () => [modelKey(), ...path.slice(1).map((nd, d) => path[d].children.indexOf(nd)), ...(sel ? [path.at(-1).children.indexOf(sel.node)] : [])].join('.');
+const parseLoc = code => { const [k, ...rest] = String(code).split('.'); return MODELS[k] ? [k, rest.filter(s => /^\d+$/.test(s)).map(Number)] : null; };
+function saveLoc() { try { history.replaceState(null, '', '#' + locCode()); } catch { /* sandboxed history: the copy-link button still works */ } }
+function jump(code) {
+  const p = parseLoc(code);
+  if (!p) return;
+  closeFind();
+  if (busy) return setTimeout(() => jump(code), 150); // a transition is running: go as soon as it ends
+  enter(...p);
+}
+addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h !== locCode()) jump(h); }); // a link pasted into the same tab
+
+function copyLink(b) {
+  const url = (ARTIFACT_URL || location.href.split('#')[0]) + '#' + locCode();
+  let p;
+  try { p = navigator.clipboard.writeText(url); } catch { p = Promise.reject(); }
+  p.then(() => { b.textContent = 'Đã chép link'; }, () => {
+    b.insertAdjacentHTML('afterend', `<input class="linkout" readonly value="${url}" aria-label="Link tới khối này">`);
+    b.nextElementSibling.select();
+  });
+}
+
+function alsoIn(nd) {
+  const labels = CONCEPT_OF[nd.name];
+  if (!labels) return '';
+  const here = modelKey() + '|' + nd.name;
+  return labels.map(label => {
+    const gs = groups(INDEX.filter(e => CONCEPTS[label].includes(e.nd.name)), e => e.key + '|' + e.nd.name).filter(g => g.key + '|' + g.nd.name !== here);
+    return gs.length ? `<p class="kids-hint">${label}</p><div class="xlinks">${gs.slice(0, 12).map(g => `<button type="button" class="xl" data-jump="${g.key}.${g.idx.join('.')}"><b>${MODELS[g.key].label}</b> ${g.trail.slice(1).join(' › ')}${g.n > 1 ? ` <span>×${g.n}</span>` : ''}</button>`).join('')}</div>` : '';
+  }).join('');
+}
+
+// search: accent-insensitive ("chuan hoa" finds "Chuẩn hoá"), over names, categories and concepts
+const fold = s => s.normalize('NFD').replace(/\p{M}/gu, '').replace(/[Đđ]/g, 'd').toLowerCase(); // \p{M} = every combining accent mark
+const SEARCH = groups(INDEX, e => e.key + '|' + e.nd.name + '|' + e.trail.at(-2)).map(g => ({ ...g,
+  name: fold(g.nd.name + ' ' + (g.nd.tag || '')), concept: fold((CONCEPT_OF[g.nd.name] || []).join(' ')), cat: fold(CAT[g.nd.cat]) }));
+const findQ = document.getElementById('find-q'), findList = document.getElementById('find-list'), findBox = findQ.parentElement;
+findQ.placeholder = `Tìm khối… (${isMac ? '⌘F' : 'Ctrl F'})`;
+findQ.setAttribute('aria-keyshortcuts', isMac ? 'Meta+F' : 'Control+F');
+let findRes = [], findAt = 0;
+function showList(on) {
+  findList.hidden = !on;
+  findQ.setAttribute('aria-expanded', on);
+  if (!on) return;
+  findList.style.left = '0';
+  const over = findList.getBoundingClientRect().right - view.getBoundingClientRect().right + 8; // the 3D view clips overflow: shift left instead
+  if (over > 0) findList.style.left = -over + 'px';
+}
+function renderFind() {
+  const f = fold(findQ.value.trim());
+  findRes = !f ? [] : SEARCH.map(s => ({ s, r: s.name.startsWith(f) ? 0 : s.name.includes(f) ? 1 : s.concept.includes(f) ? 2 : s.cat.includes(f) ? 3 : 9 }))
+    .filter(x => x.r < 9).sort((a, b) => a.r - b.r || a.s.trail.length - b.s.trail.length).slice(0, 40).map(x => x.s);
+  findAt = 0;
+  findList.innerHTML = findRes.length ? findRes.map((s, i) => `<button type="button" role="option" id="fr-${i}" class="fr" data-jump="${s.key}.${s.idx.join('.')}" aria-selected="${i === 0}">`
+    + `<span class="fr-name">${s.nd.name}${s.n > 1 ? ` <i>×${s.n}</i>` : ''}</span><span class="fr-trail"><b>${MODELS[s.key].label}</b>${s.trail.length > 2 ? ' › ' + s.trail.slice(1, -1).join(' › ') : ''}</span></button>`).join('')
+    : '<p class="finder-empty">Không có khối nào khớp. Thử tên khối, khái niệm hoặc loại, có dấu hay không dấu đều được: "chuan hoa", "residual", "RoPE".</p>';
+  showList(!!f);
+}
+function markFind() {
+  findList.querySelectorAll('.fr').forEach((b, i) => b.setAttribute('aria-selected', i === findAt));
+  findList.querySelector(`#fr-${findAt}`)?.scrollIntoView({ block: 'nearest' });
+}
+function openFind() { findQ.focus(); findQ.select(); if (findQ.value.trim()) renderFind(); }
+function closeFind() { showList(false); findQ.value = ''; findQ.blur(); }
+findQ.addEventListener('input', renderFind);
+findQ.addEventListener('focus', () => { if (findQ.value.trim()) renderFind(); });
+findQ.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (findRes.length) { findAt = (findAt + (e.key === 'ArrowDown' ? 1 : findRes.length - 1)) % findRes.length; markFind(); } }
+  else if (e.key === 'Enter' && findRes[findAt]) jump(`${findRes[findAt].key}.${findRes[findAt].idx.join('.')}`);
+  else if (e.key === 'Escape') { e.stopPropagation(); closeFind(); } // Esc here closes the search, it must not also go up a level
+});
+findList.addEventListener('click', e => { const b = e.target.closest('[data-jump]'); if (b) jump(b.dataset.jump); });
+document.addEventListener('pointerdown', e => { if (!findBox.contains(e.target)) showList(false); }); // a click elsewhere folds the list
+
+// ---------- picking ----------
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+function hit(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const meshes = level.items.filter(it => it.alpha > 0.6).flatMap(it => it.body.children.filter(o => o.isMesh));
+  return ray.intersectObjects(meshes, false)[0]?.object.userData.item;
+}
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 6 && !busy) { const it = hit(e); if (it) pick(it); else if (sel) select(null); }
+  down = null;
+});
+renderer.domElement.addEventListener('pointermove', e => { if (!e.buttons && !busy) setHover(hit(e)); });
+
+// ---------- boot ----------
+function onTheme() {
+  readTheme();
+  if (!level || busy) return;
+  const old = level, s = sel?.node;
+  level = buildLevel(path.at(-1));
+  scene.add(level.group);
+  level.items.forEach(it => setOp(it, 1)); level.links.forEach(l => setOp(l, 1));
+  dispose(old);
+  sel = hover = null;
+  const again = level.items.find(it => it.node === s);
+  if (again) select(again);
+  grid.position.y = level.floor;
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onTheme);
+new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+new ResizeObserver(() => {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h); css.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (level) fit(level, 0);
+}).observe(view);
+
+renderer.setAnimationLoop(now => {
+  for (const tw of tweens) {
+    const k = tw.ms ? Math.min(1, (now - tw.t0) / tw.ms) : 1;
+    tw.fn(k);
+    if (k === 1) { tweens.delete(tw); tw.done(); }
+  }
+  if (level && !reduce) for (const l of level.links) {
+    const u = (l.phase + (now * 0.0011) / l.len) % 1;
+    l.pulse.position.copy(l.curve.getPointAt(backward ? 1 - u : u));
+    l.pulse.scale.setScalar(backward && (l.kind === 'skip' || l.kind === 'short') ? 1.8 : 1); // the shortcut carries the gradient whole
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  css.render(scene, camera);
+});
+
+readTheme();
+enter(...(parseLoc(location.hash.slice(1)) || ['transformer'])); // a link like …#llm.2.1 opens that block
+</script>
