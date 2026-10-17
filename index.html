@@ -183,6 +183,15 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .exp details td, .exp details th { padding: 2px 10px 2px 0; text-align: right; }
 .exp details th { font: 500 11px var(--f-ui); color: var(--muted); }
 
+/* training lab */
+.lab-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.labbtn { padding: 6px 12px; font: 600 13px var(--f-ui); color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.labbtn.primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.labbtn:hover { border-color: var(--accent); }
+#lab-canvas { display: block; width: min(100%, 280px); height: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.lab-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px !important; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lab-stats b { color: var(--fg); font-family: var(--f-mono); }
+
 /* upright tablets (iPad up to 11") and upright phones: panel moves under the 3D view */
 @media (max-width: 900px) and (orientation: portrait) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 55% 45%; }
@@ -258,6 +267,7 @@ window.MathJax = {
 <script src="models/resnet.js"></script>
 <script src="models/lstm.js"></script>
 <script src="models/unet.js"></script>
+<script src="models/mlp.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -609,8 +619,9 @@ const cellBg = (v, max) => `background: color-mix(in srgb, var(${v < 0 ? '--char
 function paintLive(L) {
   const memo = {}, tmp = new THREE.Color();
   for (const it of L.items) if (it.live) {
-    const key = it.node.live, M = key === 'conv' ? (memo.c ??= convRun()).Y : LIVE_M[key](memo.a ??= TOY.run(live.words, live));
-    const { ctx, tex } = it.live, S = ctx.canvas.width, max = vmax(M);
+    const key = it.node.live, { ctx, tex } = it.live, S = ctx.canvas.width;
+    if (key === 'boundary') { ctx.clearRect(0, 0, S, S); ctx.drawImage(labImg, 0, 0, S, S); tex.needsUpdate = true; continue; } // training lab: decision boundary
+    const M = key === 'conv' ? (memo.c ??= convRun()).Y : key[0] === 'W' ? lab.net.W[key[1] - 1] : LIVE_M[key](memo.a ??= TOY.run(live.words, live)), max = vmax(M);
     const cell = Math.floor((S - 8) / Math.max(M.length, M[0].length)), ox = (S - cell * M[0].length) / 2, oy = (S - cell * M.length) / 2;
     ctx.clearRect(0, 0, S, S);
     ctx.font = `600 ${Math.round(cell * 0.3)}px "JetBrains Mono", monospace`;
@@ -620,7 +631,7 @@ function paintLive(L) {
       ctx.fillStyle = Number.isFinite(v) ? tmp.lerpColors(theme.surface, v < 0 ? theme.chartB : theme.chartA, t).getStyle() : theme.line.getStyle();
       ctx.fillRect(ox + j * cell + 2, oy + i * cell + 2, cell - 4, cell - 4);
       ctx.fillStyle = (t > 0.55 ? theme.surface : theme.fg).getStyle();
-      ctx.fillText(fmtV(v), ox + (j + 0.5) * cell, oy + (i + 0.5) * cell);
+      if (cell >= 28) ctx.fillText(fmtV(v), ox + (j + 0.5) * cell, oy + (i + 0.5) * cell); // a 16×16 weight matrix is colour only
     }));
     tex.needsUpdate = true;
   }
@@ -729,33 +740,38 @@ const EXP = {
 const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
 const sup = e => String(e).split('').map(ch => SUP[ch]).join('');
 const pow10 = e => e === 0 ? '1' : e === 1 ? '10' : '10' + sup(e);
-const fmtG = v => { if (v < 1e4 && v >= 1e-2) return v.toFixed(v < 1 ? 3 : 2); const [mant, e] = v.toExponential(1).split('e'); return `${mant}·10${sup(+e)}`; };
+const fmtG = v => { if (!Number.isFinite(v)) return '∞'; if (v < 1e4 && v >= 1e-2) return v.toFixed(v < 1 ? 3 : 2); const [mant, e] = v.toExponential(1).split('e'); return `${mant}·10${sup(+e)}`; };
 let chartNow = null; // geometry of the chart on screen, for the hover crosshair
 
-function expOut(kind) {
-  const E = EXP[kind], s = exp[kind], L = E.len(s), d = E.run(s), series = [d.plain, d.skip];
-  const lg = series.map(a => a.map(v => Math.log10(Math.max(v, 1e-30))));
+// log-scale line chart; each series is indexed by step; xStep = real steps per index (long series are thinned)
+function lineChart(series, names, unit, xLabel, xStep = 1) {
+  const L = series[0].length - 1, lg = series.map(a => a.map(v => Math.log10(Number.isFinite(v) ? Math.max(v, 1e-30) : 1e15)));
   const lo = Math.max(-15, Math.min(-1, Math.floor(Math.min(...lg.flat())))), hi = Math.min(15, Math.max(1, Math.ceil(Math.max(...lg.flat()))));
   const W = 360, H = 200, m = { l: 46, r: 96, t: 8, b: 30 };
-  const x = k => m.l + (k / L) * (W - m.l - m.r), y = v => m.t + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - m.t - m.b);
+  const x = k => m.l + (L ? k / L : 0) * (W - m.l - m.r), y = v => m.t + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - m.t - m.b);
   const step = Math.max(1, Math.ceil((hi - lo) / 5)), ticks = [];
   for (let e = hi; e >= lo; e -= step) ticks.push(e);
-  const col = i => `var(${i ? '--chart-a' : '--chart-b'})`;
-  // direct labels at the right end, nudged apart when the two lines end close together
-  let ya = [y(lg[0][L]), y(lg[1][L])];
-  if (Math.abs(ya[0] - ya[1]) < 14) { const mid = (ya[0] + ya[1]) / 2, up = ya[0] < ya[1] ? 0 : 1; ya[up] = mid - 7; ya[1 - up] = mid + 7; }
-  chartNow = { kind, L, x, y, lg, series, m, W, H };
-  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Độ lớn gradient theo số ${E.unit}, thang log: ${E.names[0]} và ${E.names[1]}">`
+  const col = i => `var(${series.length > 1 && i ? '--chart-a' : '--chart-b'})`;
+  // direct labels at the right end, nudged apart when two lines end close together
+  const ya = lg.map(a => y(a[L]));
+  if (ya.length === 2 && Math.abs(ya[0] - ya[1]) < 14) { const mid = (ya[0] + ya[1]) / 2, up = ya[0] < ya[1] ? 0 : 1; ya[up] = mid - 7; ya[1 - up] = mid + 7; }
+  chartNow = { L, x, series, names, unit, xStep, m, W };
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${names.join(' và ')} theo số ${unit}, thang log">`
     + ticks.map(e => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(e)}" y2="${y(e)}" stroke="var(--line)" stroke-width="1"/><text x="${m.l - 6}" y="${y(e) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${pow10(e)}</text>`).join('')
-    + [0, Math.round(L / 2), L].map(k => `<text x="${x(k)}" y="${H - m.b + 16}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${k}</text>`).join('')
-    + `<text x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle" font-size="10.5" fill="var(--muted)">số ${E.unit} tính từ loss →</text>`
+    + [0, Math.round(L / 2), L].map(k => `<text x="${x(k)}" y="${H - m.b + 16}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${k * xStep}</text>`).join('')
+    + `<text x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${xLabel}</text>`
     + lg.map((a, i) => `<path d="M${a.map((v, k) => `${x(k).toFixed(1)},${y(v).toFixed(1)}`).join('L')}" fill="none" stroke="${col(i)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('')
-    + lg.map((a, i) => `<circle cx="${x(L)}" cy="${y(a[L])}" r="4" fill="${col(i)}" stroke="var(--surface)" stroke-width="2"/><text x="${x(L) + 8}" y="${ya[i] + 4}" font-size="11" fill="var(--fg)">${E.names[i]}</text>`).join('')
+    + lg.map((a, i) => `<circle cx="${x(L)}" cy="${y(a[L])}" r="4" fill="${col(i)}" stroke="var(--surface)" stroke-width="2"/><text x="${x(L) + 8}" y="${ya[i] + 4}" font-size="11" fill="var(--fg)">${names[i]}</text>`).join('')
     + `<line class="xh" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/>`
     + `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" class="hit"/></svg>`;
+  return `<div class="chart">${series.length > 1 ? `<div class="legend-row">${names.map((nm, i) => `<span><i style="background: ${col(i)}"></i>${nm}</span>`).join('')}</div>` : ''}${svg}<div class="tip" hidden></div></div>`;
+}
+
+function expOut(kind) {
+  const E = EXP[kind], s = exp[kind], L = E.len(s), d = E.run(s);
   const ratio = v => v < 1 ? `nhỏ đi ${fmtG(1 / v)} lần` : `lớn lên ${fmtG(v)} lần`;
   const rows = Array.from({ length: 11 }, (_, i) => Math.round(i * L / 10)).filter((k, i, a) => a.indexOf(k) === i);
-  return `<div class="chart"><div class="legend-row">${E.names.map((nm, i) => `<span><i style="background: ${col(i)}"></i>${nm}</span>`).join('')}</div>${svg}<div class="tip" hidden></div></div>`
+  return lineChart([d.plain, d.skip], E.names, E.unit, `số ${E.unit} tính từ loss →`)
     + `<p class="reading"><span>Sau ${L} ${E.unit}: ${E.names[0]} còn <b>${fmtG(d.plain[L])}</b> (${ratio(d.plain[L])}); ${E.names[1]} còn <b>${fmtG(d.skip[L])}</b> (${ratio(d.skip[L])}).</span><span>${E.note}</span></p>`
     + `<details><summary>Xem dạng bảng</summary><table><tr><th>${E.unit}</th><th>${E.names[0]}</th><th>${E.names[1]}</th></tr>${rows.map(k => `<tr><td>${k}</td><td>${fmtG(d.plain[k])}</td><td>${fmtG(d.skip[k])}</td></tr>`).join('')}</table></details>`;
 }
@@ -768,11 +784,11 @@ function chartHover(e) {
   const svg = e.target.closest?.('.chart svg');
   if (!svg || !chartNow) return;
   const box = svg.getBoundingClientRect(), sx = (e.clientX - box.left) * chartNow.W / box.width;
-  const { L, x, m, W, series, kind } = chartNow, k = Math.max(0, Math.min(L, Math.round((sx - m.l) / (W - m.l - m.r) * L)));
+  const { L, x, m, W, series, names, unit, xStep } = chartNow, k = Math.max(0, Math.min(L, Math.round((sx - m.l) / (W - m.l - m.r) * L)));
   const xh = svg.querySelector('.xh'), tip = svg.parentElement.querySelector('.tip');
   xh.setAttribute('x1', x(k)); xh.setAttribute('x2', x(k)); xh.setAttribute('visibility', 'visible');
   tip.hidden = false;
-  tip.innerHTML = `${k} ${EXP[kind].unit}<br>${EXP[kind].names[0]}: ${fmtG(series[0][k])}<br>${EXP[kind].names[1]}: ${fmtG(series[1][k])}`;
+  tip.innerHTML = `${k * xStep} ${unit}` + series.map((s, i) => `<br>${names[i]}: ${fmtG(s[k])}`).join('');
   const px = x(k) * box.width / W;
   tip.style.left = Math.min(box.width - tip.offsetWidth, Math.max(0, px + 10)) + 'px';
   tip.style.top = '28px';
@@ -783,11 +799,109 @@ panel.addEventListener('pointerleave', () => { panel.querySelectorAll('.chart .t
 
 panel.addEventListener('input', e => {
   const t = e.target;
+  if (t.dataset.labkey) return labSlider(t);
   if (!t.dataset.exp) return;
   exp[t.dataset.exp][t.dataset.key] = +t.value;
   panel.querySelector(`#o-${t.dataset.exp}-${t.dataset.key}`).textContent = t.value;
   panel.querySelector('.exp-out').innerHTML = expOut(t.dataset.exp);
 });
+
+// ---------- training lab: TRAIN (live.js) runs a few steps per frame while ▶ is on ----------
+const LRS = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3];
+const lab = { data: 'Vòng tròn', act: 'relu', opt: 'adam', lr: 3, H: 8, running: false, hist: [], acc: 0, net: null, D: null, shown: 0 };
+const labImg = document.createElement('canvas');
+labImg.width = labImg.height = 280;
+const MAX_STEPS = 5000;
+
+function labReset() {
+  lab.net = TRAIN.init(lab.H); lab.D = TRAIN.makeData(lab.data); lab.running = false;
+  const r = TRAIN.lossGrad(lab.net, lab.D, lab.act);
+  lab.hist = [r.loss]; lab.acc = r.acc;
+}
+function labStep(k) {
+  for (let i = 0; i < k; i++) {
+    const r = TRAIN.step(lab.net, lab.D, { act: lab.act, opt: lab.opt, lr: LRS[lab.lr] });
+    lab.hist.push(r.loss); lab.acc = r.acc;
+    // stop on its own: diverged, solved, or long enough
+    if (!Number.isFinite(r.loss) || r.loss < 1e-3 || lab.hist.length > MAX_STEPS) { lab.running = false; break; }
+  }
+}
+// decision boundary: background = p(class 1) on a 56×56 grid; points ringed dark when the net gets them wrong
+function labDraw() {
+  const g = labImg.getContext('2d'), S = labImg.width, G = 56, c = S / G, span = 1.3, tmp = new THREE.Color();
+  const p = (x, y) => { const v = TRAIN.prob(lab.net, x, y, lab.act); return Number.isFinite(v) ? v : 0.5; };
+  for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) {
+    const v = p(-span + 2 * span * (j + 0.5) / G, span - 2 * span * (i + 0.5) / G);
+    g.fillStyle = tmp.lerpColors(theme.surface, v > 0.5 ? theme.chartA : theme.chartB, Math.min(1, Math.abs(v - 0.5) * 2) * 0.55).getStyle();
+    g.fillRect(j * c, i * c, c + 0.5, c + 0.5);
+  }
+  lab.D.X.forEach(([x, y], k) => {
+    const lbl = lab.D.Y[k], ok = (p(x, y) > 0.5 ? 1 : 0) === lbl;
+    g.beginPath(); g.arc((x + span) / (2 * span) * S, (span - y) / (2 * span) * S, 4, 0, 2 * Math.PI);
+    g.fillStyle = (lbl ? theme.chartA : theme.chartB).getStyle(); g.fill();
+    g.lineWidth = ok ? 1.5 : 2.5; g.strokeStyle = (ok ? theme.surface : theme.fg).getStyle(); g.stroke();
+  });
+  document.getElementById('lab-canvas')?.getContext('2d').drawImage(labImg, 0, 0);
+}
+function labAdvice() {
+  const h = lab.hist, n = h.length - 1, L0 = h[0], last = h.at(-1), pct = Math.round(lab.acc * 100);
+  if (!Number.isFinite(last) || last > 10) return 'Loss bùng nổ: learning rate quá lớn, mỗi bước nhảy quá xa và văng khỏi thung lũng. Giảm η rồi bấm Khởi tạo lại.';
+  if (n === 0) return 'Bấm ▶ Chạy để mạng bắt đầu học, hoặc "Bước +1" để đi từng bước một.';
+  if (n >= 30 && Math.abs(last - Math.LN2) < 0.01 && lab.acc <= 0.55) return 'Loss kẹt ở ln 2 = 0.693 và chỉ đúng 50%: mạng đoán 50/50 cho mọi điểm. Thường là do learning rate quá lớn làm mọi ReLU "chết" (luôn ra 0). Giảm η, đổi sang tanh, rồi khởi tạo lại.';
+  if (lab.acc >= 0.99) return `Đã tách đúng ${pct}% sau ${n} bước. Thử bộ dữ liệu khó hơn, giảm số neuron, hoặc so với bộ tối ưu khác.`;
+  const recent = h.slice(-40), ups = recent.filter((v, i) => i && v > recent[i - 1]).length;
+  if (n >= 40 && ups > 12) return 'Loss dao động lên xuống: learning rate hơi lớn, bước đi vượt qua đáy rồi quay lại. Giảm η một nấc.';
+  if (n >= 300 && last > 0.9 * L0) return 'Loss gần như không giảm: learning rate quá nhỏ, hoặc mạng quá nhỏ cho bộ dữ liệu này. Tăng η hoặc số neuron.';
+  if (n >= 400 && lab.acc < 0.97 && h.at(-100) - last < 0.01) return `Loss đã chững lại ở ${fmtG(last)} (đúng ${pct}%): có thể mạng không đủ neuron để vẽ ranh giới này. Tăng số neuron rồi khởi tạo lại.`;
+  return `Đang học: loss giảm từ ${fmtG(L0)} xuống ${fmtG(last)} sau ${n} bước (đúng ${pct}%).`;
+}
+function labOut() {
+  const h = lab.hist, stride = Math.max(1, Math.ceil(h.length / 300)), thin = h.filter((_, i) => i % stride === 0);
+  return `<p class="lab-stats"><span>Bước <b>${h.length - 1}</b></span><span>Loss <b>${fmtG(h.at(-1))}</b></span><span>Đúng <b>${Math.round(lab.acc * 100)}%</b></span></p>`
+    + (thin.length > 1 ? lineChart([thin], ['Loss'], 'bước', 'số bước huấn luyện →', stride) : '')
+    + `<p class="reading"><span>${labAdvice()}</span></p>`;
+}
+const labPick = (key, opts) => opts.map(([v, label]) => `<button type="button" data-labset="${key}" data-val="${v}" aria-pressed="${lab[key] === v}">${label}</button>`).join('');
+const labSection = () => `<section class="lab"><h3>Phòng thí nghiệm huấn luyện</h3>
+  <p class="kids-hint">Mạng 2 → H → H → 2 train ngay trong trang trên 200 điểm, cả batch mỗi bước, backprop viết tay (đã đối chiếu với gradient tính bằng sai phân). Nền màu là xác suất mạng dự đoán: hồng là lớp 1, xanh là lớp 0; điểm có viền đậm là điểm đang bị đoán sai. Heatmap trên các khối 3D là trọng số thật, đổi theo từng bước.</p>
+  <div class="live-ctl">
+    <div class="vocab"><span>Dữ liệu:</span>${labPick('data', TRAIN.DATASETS.map(d => [d, d]))}</div>
+    <div class="vocab"><span>Kích hoạt:</span>${labPick('act', [['relu', 'ReLU'], ['tanh', 'tanh']])}</div>
+    <div class="vocab"><span>Bộ tối ưu:</span>${labPick('opt', [['sgd', 'SGD'], ['momentum', 'Momentum'], ['adam', 'Adam']])}</div>
+    <label class="sl" for="lab-lr"><span>Learning rate η<output id="o-lab-lr">${LRS[lab.lr]}</output></span><input type="range" id="lab-lr" data-labkey="lr" min="0" max="${LRS.length - 1}" step="1" value="${lab.lr}"></label>
+    <label class="sl" for="lab-h"><span>Số neuron mỗi lớp ẩn<output id="o-lab-h">${lab.H}</output></span><input type="range" id="lab-h" data-labkey="H" min="2" max="16" step="1" value="${lab.H}"></label>
+    <div class="lab-btns"><button type="button" class="labbtn primary" data-lab="run">${lab.running ? '❚❚ Dừng' : '▶ Chạy'}</button><button type="button" class="labbtn" data-lab="step">Bước +1</button><button type="button" class="labbtn" data-lab="reset">Khởi tạo lại</button></div>
+  </div>
+  <canvas id="lab-canvas" width="280" height="280" role="img" aria-label="Ranh giới quyết định của mạng và 200 điểm dữ liệu"></canvas>
+  <div class="lab-out">${labOut()}</div></section>`;
+
+function labUI() {
+  labDraw();
+  const out = panel.querySelector('.lab-out');
+  if (out) out.innerHTML = labOut();
+  const run = panel.querySelector('[data-lab="run"]');
+  if (run) run.textContent = lab.running ? '❚❚ Dừng' : '▶ Chạy';
+  if (level.items.some(it => it.live && (it.node.live[0] === 'W' || it.node.live === 'boundary'))) paintLive(level);
+}
+function labAction(a) {
+  if (a === 'run') { if (!Number.isFinite(lab.hist.at(-1)) || lab.hist.length > MAX_STEPS) labReset(); lab.running = !lab.running; }
+  else if (a === 'step') { lab.running = false; labStep(1); }
+  else if (a === 'reset') labReset();
+  labUI();
+}
+function labSet(key, val) {
+  lab[key] = val;
+  if (key === 'opt') TRAIN.resetOpt(lab.net); else labReset(); // a new optimizer keeps the weights; new data or activation start over
+  panel.querySelectorAll(`[data-labset="${key}"]`).forEach(b => b.setAttribute('aria-pressed', b.dataset.val === val));
+  labUI();
+}
+function labSlider(t) {
+  const key = t.dataset.labkey;
+  lab[key] = +t.value;
+  panel.querySelector(`#o-lab-${key.toLowerCase()}`).textContent = key === 'lr' ? LRS[lab.lr] : lab.H;
+  if (key === 'H') labReset(); // a different width is a different network
+  labUI();
+}
 
 panel.addEventListener('change', e => {
   if (e.target.id === 'live-causal') live.causal = e.target.checked;
@@ -819,9 +933,10 @@ function renderPanel() {
   panel.innerHTML = (sel ? `<button class="back" type="button" data-act="back">← Về ${path.at(-1).name}</button>` : '')
     + `<div class="eyebrow"><span class="chip" style="--c: var(--c-${cv(nd.cat)})">${CAT[nd.cat]}</span>${nd.repeat > 1 ? `<span class="rep">lặp ×${nd.repeat}</span>` : ''}<button class="linkbtn" type="button" data-act="link">Sao chép link</button></div>`
     + `<h2>${nd.name}</h2>` + (nd.shape ? `<p class="shape">${nd.shape}</p>` : '') + `<p class="what">${i.what}</p>`
+    + (nd.exp === 'train' ? labSection() : '') // the lab is the point of these blocks: controls before the formulas
     + sec('Công thức', i.formula && i.formula.map(f => `<div class="math">\\[${f}\\]</div>`).join(''))
-    + (nd.live === 'conv' ? convSection() : nd.live ? liveSection(nd.live) : '')
-    + (nd.exp ? expSection(nd.exp) : '')
+    + (nd.live === 'conv' ? convSection() : nd.live && nd.live !== 'boundary' && nd.live[0] !== 'W' ? liveSection(nd.live) : '')
+    + (nd.exp && nd.exp !== 'train' ? expSection(nd.exp) : '')
     + sec('Vì sao như vậy', i.why && `<p>${i.why}</p>`)
     + sec('Ví dụ số', i.example && `<p>${i.example}</p>`)
     + sec('Tham số', i.params && `<p>${i.params}</p>`)
@@ -831,6 +946,7 @@ function renderPanel() {
     + sec('Cũng xuất hiện ở', alsoIn(nd))
     + sec('Nguồn', nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${r.t}</a>${r.note ? ` <span>(${r.note})</span>` : ''}</li>`).join('')}</ul>`);
   panel.scrollTop = 0;
+  if (nd.exp === 'train') labDraw();
   window.MathJax?.typesetPromise?.([panel]).catch(() => {});
 }
 
@@ -846,6 +962,8 @@ panel.addEventListener('click', e => {
   else if (b.dataset.px) { const [i, j] = b.dataset.px.split(',').map(Number); conv.img[i][j] ^= 1; refreshConv(); }
   else if (b.dataset.out) { conv.pick = b.dataset.out.split(',').map(Number); refreshConv(); }
   else if (b.dataset.jump) jump(b.dataset.jump);
+  else if (b.dataset.lab) labAction(b.dataset.lab);
+  else if (b.dataset.labset) labSet(b.dataset.labset, b.dataset.val);
   else if (b.dataset.act === 'link') copyLink(b);
   else if (b.dataset.act === 'back') select(null);
   else if (b.dataset.act === 'copy') {
@@ -1035,6 +1153,10 @@ renderer.setAnimationLoop(now => {
     tw.fn(k);
     if (k === 1) { tweens.delete(tw); tw.done(); }
   }
+  if (lab.running) { // a few full-batch steps per frame; the panel and the 3D heatmaps refresh ~8 times a second
+    labStep(4);
+    if (now - lab.shown > 120 || !lab.running) { lab.shown = now; labUI(); }
+  }
   if (level && !reduce) for (const l of level.links) {
     const u = (l.phase + (now * 0.0011) / l.len) % 1;
     l.pulse.position.copy(l.curve.getPointAt(backward ? 1 - u : u));
@@ -1046,5 +1168,6 @@ renderer.setAnimationLoop(now => {
 });
 
 readTheme();
+labReset();
 enter(...(parseLoc(location.hash.slice(1)) || ['transformer'])); // a link like …#llm.2.1 opens that block
 </script>

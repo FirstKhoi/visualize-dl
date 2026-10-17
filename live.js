@@ -68,6 +68,89 @@ const TOYCONV = (() => {
   return { N, IMAGES, KERNELS, outSize, run };
 })();
 
+// Tiny MLP trained in the page: 2 → H → H → 2, softmax + cross-entropy, full batch, hand-written backprop.
+const TRAIN = (() => {
+  const rng = s => () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const gauss = r => () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r());
+  // each generator returns [x, y, label] in roughly [-1, 1]²
+  const DATASETS = {
+    'Hai cụm': (r, g, i) => { const c = i % 2; return [(c ? 0.45 : -0.45) + 0.28 * g(), (c ? 0.45 : -0.45) + 0.28 * g(), c]; },
+    'Vòng tròn': (r, g, i) => { const c = i % 2, rad = c ? 0.45 * Math.sqrt(r()) : 0.7 + 0.25 * r(), a = 2 * Math.PI * r(); return [rad * Math.cos(a) + 0.04 * g(), rad * Math.sin(a) + 0.04 * g(), c]; },
+    'XOR': (r) => { const x = 2 * r() - 1, y = 2 * r() - 1; return [x + (x > 0 ? 0.06 : -0.06), y + (y > 0 ? 0.06 : -0.06), x * y > 0 ? 1 : 0]; },
+    // ~1.9 turns: 8 hidden units stall near 95%, 16 reach 100%
+    'Xoắn ốc': (r, g, i) => { const c = i % 2, t = 0.25 + 2.6 * r(), a = 4.5 * t + c * Math.PI; return [0.36 * t * Math.cos(a) + 0.03 * g(), 0.36 * t * Math.sin(a) + 0.03 * g(), c]; }
+  };
+  function makeData(name, n = 200) {
+    const r = rng(42), g = gauss(r), X = [], Y = [];
+    for (let i = 0; i < n; i++) { const [x, y, c] = DATASETS[name](r, g, i); X.push([x, y]); Y.push(c); }
+    return { X, Y };
+  }
+  const mat = (a, b, f) => Array.from({ length: a }, () => Array.from({ length: b }, f));
+  // He initialisation: weights ~ N(0, 2/fan_in), biases 0
+  function init(H, seed = 1) {
+    const g = gauss(rng(seed)), w = (a, b) => mat(a, b, () => g() * Math.sqrt(2 / a));
+    const net = { H, W: [w(2, H), w(H, H), w(H, 2)], b: [new Array(H).fill(0), new Array(H).fill(0), [0, 0]], t: 0 };
+    resetOpt(net);
+    return net;
+  }
+  function resetOpt(net) { // optimizer memory (momentum / Adam moments) has the same shapes as the parameters
+    const z = () => ({ W: net.W.map(M => M.map(r => r.map(() => 0))), b: net.b.map(v => v.map(() => 0)) });
+    net.m = z(); net.v = z(); net.t = 0;
+  }
+  const ACT = { relu: [z => z > 0 ? z : 0, z => z > 0 ? 1 : 0], tanh: [Math.tanh, z => 1 - Math.tanh(z) ** 2] };
+  const affine = (a, W, b) => b.map((bj, j) => a.reduce((s, ai, i) => s + ai * W[i][j], bj));
+  function forward(net, x, act) {
+    const f = ACT[act][0], z1 = affine(x, net.W[0], net.b[0]), a1 = z1.map(f), z2 = affine(a1, net.W[1], net.b[1]), a2 = z2.map(f), z3 = affine(a2, net.W[2], net.b[2]);
+    const m = Math.max(...z3), e = z3.map(v => Math.exp(v - m)), s = e[0] + e[1];
+    return { x, z1, a1, z2, a2, p: [e[0] / s, e[1] / s] };
+  }
+  // loss, accuracy and gradients over the whole batch (backprop by the chain rule, layer by layer)
+  function lossGrad(net, D, act) {
+    const df = ACT[act][1], n = D.X.length, gW = net.W.map(M => M.map(r => r.map(() => 0))), gb = net.b.map(v => v.map(() => 0));
+    let loss = 0, hit = 0;
+    const back = (k, a, d) => { for (let i = 0; i < a.length; i++) for (let j = 0; j < d.length; j++) gW[k][i][j] += a[i] * d[j] / n; d.forEach((v, j) => gb[k][j] += v / n); };
+    const thru = (k, d, z) => net.W[k].map((row, i) => row.reduce((s, w, j) => s + w * d[j], 0) * df(z[i])); // δ_prev = (δ Wᵀ) ⊙ f'(z)
+    D.X.forEach((x, i) => {
+      const c = forward(net, x, act), y = D.Y[i];
+      loss -= Math.log(Math.max(c.p[y], 1e-12)) / n;
+      if ((c.p[1] > 0.5 ? 1 : 0) === y) hit++;
+      const d3 = [c.p[0] - (y === 0), c.p[1] - (y === 1)]; // softmax + cross-entropy: gradient = p − onehot(y)
+      back(2, c.a2, d3);
+      const d2 = thru(2, d3, c.z2); back(1, c.a1, d2);
+      const d1 = thru(1, d2, c.z1); back(0, c.x, d1);
+    });
+    return { loss, acc: hit / n, gW, gb };
+  }
+  function step(net, D, { act, opt, lr }) {
+    const r = lossGrad(net, D, act), b1 = 0.9, b2 = 0.999;
+    net.t++;
+    const upd = (P, G, M, V) => {
+      if (opt === 'sgd') return P - lr * G;
+      if (opt === 'momentum') { M.val = 0.9 * M.val + G; return P - lr * M.val; }
+      M.val = b1 * M.val + (1 - b1) * G; V.val = b2 * V.val + (1 - b2) * G * G; // Adam
+      return P - lr * (M.val / (1 - b1 ** net.t)) / (Math.sqrt(V.val / (1 - b2 ** net.t)) + 1e-8);
+    };
+    const cell = (arr, i) => ({ get val() { return arr[i]; }, set val(v) { arr[i] = v; } });
+    net.W.forEach((W, k) => W.forEach((row, i) => row.forEach((w, j) => { row[j] = upd(w, r.gW[k][i][j], cell(net.m.W[k][i], j), cell(net.v.W[k][i], j)); })));
+    net.b.forEach((b, k) => b.forEach((w, j) => { b[j] = upd(w, r.gb[k][j], cell(net.m.b[k], j), cell(net.v.b[k], j)); }));
+    return { loss: r.loss, acc: r.acc };
+  }
+  const prob = (net, x, y, act) => forward(net, [x, y], act).p[1];
+
+  // self-check: backprop gradients must match finite differences (tanh: smooth everywhere)
+  const D = makeData('XOR', 6), net = init(3, 5), { gW } = lossGrad(net, D, 'tanh');
+  let worst = 0;
+  for (const [k, i, j] of [[0, 0, 1], [1, 2, 0], [2, 1, 1], [0, 1, 2]]) {
+    const w0 = net.W[k][i][j], e = 1e-5;
+    net.W[k][i][j] = w0 + e; const lp = lossGrad(net, D, 'tanh').loss;
+    net.W[k][i][j] = w0 - e; const lm = lossGrad(net, D, 'tanh').loss;
+    net.W[k][i][j] = w0;
+    worst = Math.max(worst, Math.abs((lp - lm) / (2 * e) - gW[k][i][j]) / Math.max(1e-8, Math.abs(gW[k][i][j])));
+  }
+  console.assert(worst < 1e-4, 'backprop gradient check failed', worst);
+  return { DATASETS: Object.keys(DATASETS), makeData, init, resetOpt, step, lossGrad, prob, gradCheck: worst };
+})();
+
 // Gradient flowing backwards through many layers (or time steps), with fixed random 32×32 Jacobians.
 const GRAD = (() => {
   const d = 32, MAX = 100;

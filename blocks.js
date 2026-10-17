@@ -47,7 +47,12 @@ const PAPER = {
   jozefowicz: ['Jozefowicz, Zaremba & Sutskever (2015), An Empirical Exploration of Recurrent Network Architectures', 'https://proceedings.mlr.press/v37/jozefowicz15.html'],
   colah: ['Olah (2015), Understanding LSTM Networks (bài viết)', 'https://colah.github.io/posts/2015-08-Understanding-LSTMs/'],
   unet: ['Ronneberger, Fischer & Brox (2015), U-Net: Convolutional Networks for Biomedical Image Segmentation', 'https://arxiv.org/abs/1505.04597'],
-  odena: ['Odena, Dumoulin & Olah (2016), Deconvolution and Checkerboard Artifacts (Distill)', 'https://distill.pub/2016/deconv-checkerboard/']
+  odena: ['Odena, Dumoulin & Olah (2016), Deconvolution and Checkerboard Artifacts (Distill)', 'https://distill.pub/2016/deconv-checkerboard/'],
+  rumelhart: ['Rumelhart, Hinton & Williams (1986), Learning representations by back-propagating errors', 'https://doi.org/10.1038/323533a0'],
+  adam: ['Kingma & Ba (2014), Adam: A Method for Stochastic Optimization', 'https://arxiv.org/abs/1412.6980'],
+  heinit: ['He và cộng sự (2015), Delving Deep into Rectifiers (khởi tạo He)', 'https://arxiv.org/abs/1502.01852'],
+  momentum: ['Sutskever và cộng sự (2013), On the importance of initialization and momentum in deep learning', 'https://proceedings.mlr.press/v28/sutskever13.html'],
+  playground: ['Smilkov & Carter, TensorFlow Playground (ý tưởng gốc của phòng thí nghiệm này)', 'https://playground.tensorflow.org/']
 };
 const ref = (key, note) => ({ t: PAPER[key][0], u: PAPER[key][1], note });
 
@@ -58,19 +63,19 @@ const CONCEPTS = {
   'Multi-head attention': ['Multi-Head Self-Attention', 'Masked Multi-Head Attention', 'Cross-Attention', 'Grouped-Query Attention'],
   'Query, key, value': ['Chiếu Q, K, V', 'Q·Kᵀ', 'KV cache'],
   'Mặt nạ': ['Mặt nạ'],
-  'Softmax': ['Softmax', 'FC 1000 + Softmax'],
+  'Softmax': ['Softmax', 'FC 1000 + Softmax', 'Softmax + Cross-entropy'],
   'Chuẩn hoá': ['LayerNorm', 'LayerNorm cuối', 'RMSNorm', 'RMSNorm cuối', 'BatchNorm'],
-  'Hàm kích hoạt': ['ReLU', 'GELU', 'SiLU', 'tanh(cₜ)'],
+  'Hàm kích hoạt': ['ReLU', 'GELU', 'SiLU', 'tanh(cₜ)', 'Kích hoạt 1', 'Kích hoạt 2'],
   'Cổng (gating)': ['Cổng quên f', 'Cổng vào i', 'Cổng ra o', 'Nhân cổng ⊙', 'Quên bớt: f ⊙ cₜ₋₁', 'Ghi mới: i ⊙ g', 'Output hₜ = o ⊙ tanh(cₜ)'],
   'Khối feed-forward': ['Feed-Forward', 'MLP', 'SwiGLU FFN'],
-  'Lớp Linear (kể cả conv 1×1)': ['Linear 512 → 2048', 'Linear 2048 → 512', 'Linear 768 → 3072', 'Linear 3072 → 768', 'Nhánh cổng W_gate', 'Nhánh giá trị W_up', 'Nhánh xuống W_down', 'Chiếu ra Wᴼ', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)'],
+  'Lớp Linear (kể cả conv 1×1)': ['Linear 2 → H', 'Linear H → H', 'Linear H → 2', 'Linear 512 → 2048', 'Linear 2048 → 512', 'Linear 768 → 3072', 'Linear 3072 → 768', 'Nhánh cổng W_gate', 'Nhánh giá trị W_up', 'Nhánh xuống W_down', 'Chiếu ra Wᴼ', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)'],
   'Embedding': ['Token Embedding', 'Embedding', 'Embedding nguồn + Vị trí', 'Embedding đích + Vị trí', 'Patch Embedding'],
   'Mã hoá vị trí': ['Positional Encoding', 'RoPE', 'Cộng vị trí (PE học được)'],
   'Tích chập': ['Conv 3×3', 'Conv 3×3, bước 2', 'Conv 3×3 (không đệm)', 'Conv 7×7, 64 kênh, bước 2', 'Conv 16×16, bước 16', 'Up-conv 2×2, bước 2', 'Đường tắt: Conv 1×1 + BN', 'Đường tắt: Conv 1×1 bước 2 + BN', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)', 'Conv 1×1 → 2 lớp'],
   'Pooling': ['MaxPool 3×3, bước 2', 'MaxPool 2×2, bước 2', 'Global Average Pooling'],
   'Dropout': ['Dropout', 'Cộng + Dropout'],
-  'Lớp đầu ra': ['Linear → từ điển', 'LM head', 'Head phân loại', 'FC 1000 + Softmax', 'Conv 1×1 → 2 lớp'],
-  'Đầu vào': ['Token nguồn', 'Token đích (dịch phải)', 'Token vào', 'Ảnh vào'],
+  'Lớp đầu ra': ['Linear → từ điển', 'LM head', 'Head phân loại', 'FC 1000 + Softmax', 'Conv 1×1 → 2 lớp', 'Softmax + Cross-entropy'],
+  'Đầu vào': ['Token nguồn', 'Token đích (dịch phải)', 'Token vào', 'Ảnh vào', 'Điểm vào (x, y)'],
   'Tách và nối các đầu': ['Tách 8 đầu', 'Tách 12 đầu', 'Nối các đầu', 'Lặp K, V cho nhóm'],
   'Nối (concat)': ['Nối các đầu', 'Nối [hₜ₋₁; xₜ]', 'Cắt và nối (copy & crop)', 'Thêm token [CLS]'],
   'Chồng nhiều lớp giống nhau': ['Encoder', 'Decoder', 'LSTM', 'Bottleneck (identity)']
