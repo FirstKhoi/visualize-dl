@@ -1,3 +1,7 @@
+// Seeded random numbers (mulberry32) and normal samples (Box–Muller), for everything below that needs noise.
+const rng = s => () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const gauss = r => () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r());
+
 // Toy self-attention that really runs in the page. Weights are hand-picked so the numbers can be read:
 // x has 5 named features, queries/keys live in 3 named dims, W_V = I (outputs stay in feature space), no PE, no W_O.
 const TOY = (() => {
@@ -70,8 +74,6 @@ const TOYCONV = (() => {
 
 // Tiny MLP trained in the page: 2 → H → H → 2, softmax + cross-entropy, full batch, hand-written backprop.
 const TRAIN = (() => {
-  const rng = s => () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  const gauss = r => () => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r());
   // each generator returns [x, y, label] in roughly [-1, 1]²
   const DATASETS = {
     'Hai cụm': (r, g, i) => { const c = i % 2; return [(c ? 0.45 : -0.45) + 0.28 * g(), (c ? 0.45 : -0.45) + 0.28 * g(), c]; },
@@ -193,12 +195,11 @@ const TRAIN = (() => {
 // Gradient flowing backwards through many layers (or time steps), with fixed random 32×32 Jacobians.
 const GRAD = (() => {
   const d = 32, MAX = 100;
-  const rand = (s => () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; })(7);
-  const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
-  const mat = () => Array.from({ length: d }, () => Array.from({ length: d }, () => gauss() / Math.sqrt(d))); // E‖Wᵀg‖ ≈ ‖g‖
+  const rand = rng(7), normal = gauss(rand);
+  const mat = () => Array.from({ length: d }, () => Array.from({ length: d }, () => normal() / Math.sqrt(d))); // E‖Wᵀg‖ ≈ ‖g‖
   const Ws = Array.from({ length: MAX }, mat), Wr = mat();
   const tanhD = Array.from({ length: MAX }, () => Array.from({ length: d }, () => 0.3 + 0.7 * rand())); // tanh' of each unit at each step
-  const g0 = (v => { const z = Math.hypot(...v); return v.map(x => x / z); })(Array.from({ length: d }, gauss));
+  const g0 = (v => { const z = Math.hypot(...v); return v.map(x => x / z); })(Array.from({ length: d }, normal));
   const mtv = (W, g) => W[0].map((_, j) => W.reduce((s, row, i) => s + row[j] * g[i], 0)); // Wᵀg
   const norm = g => Math.hypot(...g);
   // returns norms[k] for k = 0..L, k = layers (steps) between the loss and that point

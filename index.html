@@ -610,7 +610,16 @@ function setHover(it) {
 const live = { words: [...TOY.PRESETS[0]], causal: false, scale: true, owner: null };
 const conv = { img: TOYCONV.IMAGES['Cạnh dọc'].map(r => [...r]), kernel: 'Sobel dọc', pad: 1, stride: 1, owner: null, pick: null };
 const MAXW = 6;
-const LIVE_M = { qk: r => r.S, scale: r => r.St, mask: r => r.Sm, softmax: r => r.A, sdpa: r => r.A, av: r => r.O };
+// every live key a block can carry (node.live): the matrix or picture painted above it in 3D, the panel section that
+// explains it, and the demo it belongs to. A model file can only use keys listed here.
+const LIVE = {
+  ...Object.fromEntries(Object.entries({ qk: r => r.S, scale: r => r.St, mask: r => r.Sm, softmax: r => r.A, sdpa: r => r.A, av: r => r.O })
+    .map(([k, pick]) => [k, { demo: 'attn', matrix: memo => pick(memo.attn ??= TOY.run(live.words, live)), section: () => liveSection(k) }])),
+  conv: { demo: 'conv', matrix: memo => (memo.conv ??= convRun()).Y, section: () => convSection() },
+  ...Object.fromEntries([1, 2, 3].map(k => [`W${k}`, { demo: 'lab', matrix: () => lab.net.W[k - 1] }])), // the lab's real weights
+  boundary: { demo: 'lab', image: () => labImg } // the lab's decision boundary
+};
+const showsDemo = (L, demo) => L.items.some(it => it.live && LIVE[it.node.live].demo === demo);
 const fmtV = v => v === -Infinity ? '−∞' : Number.isInteger(v) ? String(v) : v.toFixed(2);
 const vmax = M => Math.max(1e-9, ...M.flat().filter(Number.isFinite).map(Math.abs));
 const convRun = () => TOYCONV.run(conv.img, TOYCONV.KERNELS[conv.kernel], conv);
@@ -620,11 +629,11 @@ const cellBg = (v, max) => `background: color-mix(in srgb, var(${v < 0 ? '--char
 function paintLive(L) {
   const memo = {}, tmp = new THREE.Color();
   for (const it of L.items) if (it.live) {
-    const key = it.node.live, { ctx, tex } = it.live, S = ctx.canvas.width;
-    if (key === 'boundary') { ctx.clearRect(0, 0, S, S); ctx.drawImage(labImg, 0, 0, S, S); tex.needsUpdate = true; continue; } // training lab: decision boundary
-    const M = key === 'conv' ? (memo.c ??= convRun()).Y : key[0] === 'W' ? lab.net.W[key[1] - 1] : LIVE_M[key](memo.a ??= TOY.run(live.words, live)), max = vmax(M);
-    const cell = Math.floor((S - 8) / Math.max(M.length, M[0].length)), ox = (S - cell * M[0].length) / 2, oy = (S - cell * M.length) / 2;
+    const kind = LIVE[it.node.live], { ctx, tex } = it.live, S = ctx.canvas.width;
     ctx.clearRect(0, 0, S, S);
+    if (kind.image) { ctx.drawImage(kind.image(), 0, 0, S, S); tex.needsUpdate = true; continue; }
+    const M = kind.matrix(memo), max = vmax(M);
+    const cell = Math.floor((S - 8) / Math.max(M.length, M[0].length)), ox = (S - cell * M[0].length) / 2, oy = (S - cell * M.length) / 2;
     ctx.font = `600 ${Math.round(cell * 0.3)}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     M.forEach((row, i) => row.forEach((v, j) => {
@@ -896,7 +905,7 @@ function labUI() {
   }
   const run = panel.querySelector('[data-lab="run"]'), label = lab.running ? '❚❚ Dừng' : '▶ Chạy';
   if (run && run.textContent !== label) run.textContent = label;
-  if (level.items.some(it => it.live && (it.node.live[0] === 'W' || it.node.live === 'boundary'))) paintLive(level);
+  if (showsDemo(level, 'lab')) paintLive(level);
 }
 function labAction(a) {
   if (a === 'run') {
@@ -954,7 +963,7 @@ function renderPanel() {
     + `<h2>${nd.name}</h2>` + (nd.shape ? `<p class="shape">${nd.shape}</p>` : '') + `<p class="what">${i.what}</p>`
     + (nd.exp === 'train' ? labSection() : '') // the lab is the point of these blocks: controls before the formulas
     + sec('Công thức', i.formula && i.formula.map(f => `<div class="math">\\[${f}\\]</div>`).join(''))
-    + (nd.live === 'conv' ? convSection() : nd.live && nd.live !== 'boundary' && nd.live[0] !== 'W' ? liveSection(nd.live) : '')
+    + (LIVE[nd.live]?.section?.() ?? '')
     + (nd.exp && nd.exp !== 'train' ? expSection(nd.exp) : '')
     + sec('Vì sao như vậy', i.why && `<p>${i.why}</p>`)
     + sec('Ví dụ số', i.example && `<p>${i.example}</p>`)
