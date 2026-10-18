@@ -69,3 +69,59 @@ test('lab: circle with Adam η = 0.3 stuck on a flat loss is not told it oscilla
 test('lab: XOR with Adam η = 1 kills every ReLU and is told so', () => {
   assert.equal(train('XOR', { act: 'relu', opt: 'adam', lr: 1 }, 8, 800), 'dead');
 });
+
+// optimizer arithmetic, checked against the update rules themselves (guards rewrites of step)
+const stepOnce = (opt, lr, net = TRAIN.init(5, 2), D = TRAIN.makeData('Hai cụm', 20)) => {
+  const w0 = flat(net.W), g0 = flat(TRAIN.lossGrad(net, D, 'tanh').gW);
+  TRAIN.step(net, D, { act: 'tanh', opt, lr });
+  return { net, D, w0, g0, w1: flat(net.W) };
+};
+const close = (a, b, tol, what) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) <= tol, `${what}[${i}]: ${v} vs ${b[i]}`));
+
+test('an SGD step moves every weight by −η × its gradient', () => {
+  const { w0, g0, w1 } = stepOnce('sgd', 0.1);
+  close(w1, w0.map((w, i) => w - 0.1 * g0[i]), 1e-12, 'w');
+});
+
+test("Adam's first step moves every weight by η against its gradient's sign", () => {
+  // after one step m̂ = g and v̂ = g², so the update is η · g / (|g| + ε) with ε = 1e-8
+  const { w0, g0, w1 } = stepOnce('adam', 0.01);
+  close(w1, w0.map((w, i) => w - 0.01 * g0[i] / (Math.abs(g0[i]) + 1e-8)), 1e-12, 'w');
+});
+
+test('a momentum step adds 0.9 of the previous gradient to the new one', () => {
+  const { net, D, w0, g0, w1 } = stepOnce('momentum', 0.05);
+  close(w1, w0.map((w, i) => w - 0.05 * g0[i]), 1e-12, 'first step');
+  const g1 = flat(TRAIN.lossGrad(net, D, 'tanh').gW);
+  TRAIN.step(net, D, { act: 'tanh', opt: 'momentum', lr: 0.05 });
+  close(flat(net.W), w1.map((w, i) => w - 0.05 * (0.9 * g0[i] + g1[i])), 1e-12, 'second step');
+});
+
+// the step rate of a run, whatever the display's refresh rate
+const frames = (pace, hz, seconds, t0 = 0) => {
+  let total = 0;
+  for (let f = 0; f <= hz * seconds; f++) total += pace(t0 + f * 1000 / hz);
+  return total;
+};
+
+test('a run takes the same number of steps per second at 60 Hz and at 144 Hz', () => {
+  assert.equal(frames(TRAIN.pacer(240, 16), 60, 1), 240);
+  assert.equal(frames(TRAIN.pacer(240, 16), 144, 1), 240);
+});
+
+test('after a stall the next frame owes no more than the cap', () => {
+  const pace = TRAIN.pacer(240, 16);
+  assert.equal(pace(0), 0);
+  assert.equal(pace(5000), 16); // 5 s in a hidden tab would be 1 200 steps at once
+  assert.equal(pace(5000 + 1000 / 60), 4);
+});
+
+test("the decision boundary's fast probability matches the network's forward pass", () => {
+  for (const act of ['relu', 'tanh']) {
+    const net = TRAIN.init(16, 3), p = TRAIN.prober(net, act);
+    for (const [x, y] of [[0, 0], [0.7, -0.2], [-1.2, 1.1], [0.05, 0.9]]) {
+      const one = { X: [[x, y]], Y: [1] }; // a one-point batch: its loss is −log p(class 1)
+      assert.ok(Math.abs(p(x, y) - Math.exp(-TRAIN.lossGrad(net, one, act).loss)) < 1e-12, `${act} at ${x}, ${y}`);
+    }
+  }
+});

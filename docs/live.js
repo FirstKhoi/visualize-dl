@@ -126,19 +126,40 @@ const TRAIN = (() => {
   function step(net, D, { act, opt, lr }) {
     const r = net.next?.D === D && net.next.act === act ? net.next.r : lossGrad(net, D, act), b1 = 0.9, b2 = 0.999;
     net.t++;
-    const upd = (P, G, M, V) => {
+    const upd = (P, G, M, V, i) => { // M[i], V[i]: the optimizer's memory for this parameter
       if (opt === 'sgd') return P - lr * G;
-      if (opt === 'momentum') { M.val = 0.9 * M.val + G; return P - lr * M.val; }
-      M.val = b1 * M.val + (1 - b1) * G; V.val = b2 * V.val + (1 - b2) * G * G; // Adam
-      return P - lr * (M.val / (1 - b1 ** net.t)) / (Math.sqrt(V.val / (1 - b2 ** net.t)) + 1e-8);
+      if (opt === 'momentum') { M[i] = 0.9 * M[i] + G; return P - lr * M[i]; }
+      M[i] = b1 * M[i] + (1 - b1) * G; V[i] = b2 * V[i] + (1 - b2) * G * G; // Adam
+      return P - lr * (M[i] / (1 - b1 ** net.t)) / (Math.sqrt(V[i] / (1 - b2 ** net.t)) + 1e-8);
     };
-    const cell = (arr, i) => ({ get val() { return arr[i]; }, set val(v) { arr[i] = v; } });
-    net.W.forEach((W, k) => W.forEach((row, i) => row.forEach((w, j) => { row[j] = upd(w, r.gW[k][i][j], cell(net.m.W[k][i], j), cell(net.v.W[k][i], j)); })));
-    net.b.forEach((b, k) => b.forEach((w, j) => { b[j] = upd(w, r.gb[k][j], cell(net.m.b[k], j), cell(net.v.b[k], j)); }));
+    net.W.forEach((W, k) => W.forEach((row, i) => row.forEach((w, j) => { row[j] = upd(w, r.gW[k][i][j], net.m.W[k][i], net.v.W[k][i], j); })));
+    net.b.forEach((b, k) => b.forEach((w, j) => { b[j] = upd(w, r.gb[k][j], net.m.b[k], net.v.b[k], j); }));
     net.next = { D, act, r: lossGrad(net, D, act) };
     return { loss: net.next.r.loss, acc: net.next.r.acc };
   }
-  const prob = (net, x, y, act) => forward(net, [x, y], act).p[1];
+  // p(class 1) as a function of (x, y), without the arrays forward() builds per point: the boundary picture needs ~3 300 of them
+  function prober(net, act) {
+    const f = ACT[act][0], H = net.H, [W1, W2, W3] = net.W, [b1, b2, b3] = net.b, a1 = new Float64Array(H), a2 = new Float64Array(H);
+    return (x, y) => {
+      for (let j = 0; j < H; j++) a1[j] = f(x * W1[0][j] + y * W1[1][j] + b1[j]);
+      for (let j = 0; j < H; j++) { let s = b2[j]; for (let i = 0; i < H; i++) s += a1[i] * W2[i][j]; a2[j] = f(s); }
+      let z0 = b3[0], z1 = b3[1];
+      for (let i = 0; i < H; i++) { z0 += a2[i] * W3[i][0]; z1 += a2[i] * W3[i][1]; }
+      return 1 / (1 + Math.exp(z0 - z1)); // softmax over two logits = sigmoid of their difference
+    };
+  }
+  // steps each animation frame owes so a run goes at `rate` steps per second whatever the display's refresh rate;
+  // counted from the run's start (no drift), and after a stall (hidden tab, slow frame) a frame owes at most `most`
+  function pacer(rate, most) {
+    let t0 = null, given = 0;
+    return now => {
+      if (t0 === null) { t0 = now; return 0; }
+      let k = Math.floor(rate * (now - t0) / 1000 + 1e-6) - given;
+      if (k > most) { given += k - most; k = most; } // drop what a stall would owe instead of catching up in a burst
+      given += k;
+      return k;
+    };
+  }
   // reads the loss curve h (h[k] = loss after k steps) the way a person would; index.html turns the verdict into advice
   function diagnose(h, acc, D) {
     const n = h.length - 1, L0 = h[0], last = h.at(-1);
@@ -166,7 +187,7 @@ const TRAIN = (() => {
     worst = Math.max(worst, Math.abs((lp - lm) / (2 * e) - gW[k][i][j]) / Math.max(1e-8, Math.abs(gW[k][i][j])));
   }
   console.assert(worst < 1e-4, 'backprop gradient check failed', worst);
-  return { DATASETS: Object.keys(DATASETS), makeData, init, resetOpt, step, lossGrad, prob, diagnose, gradCheck: worst };
+  return { DATASETS: Object.keys(DATASETS), makeData, init, resetOpt, step, lossGrad, prober, pacer, diagnose, gradCheck: worst };
 })();
 
 // Gradient flowing backwards through many layers (or time steps), with fixed random 32×32 Jacobians.
