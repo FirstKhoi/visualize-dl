@@ -1,0 +1,9 @@
+{
+  "name": "visualize-dl",
+  "private": true,
+  "description": "Giải phẫu mạng nơ-ron: a 3D explorer for neural network architectures",
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\""
+  },
+  "license": "MIT"
+}

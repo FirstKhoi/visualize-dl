@@ -121,8 +121,10 @@ const TRAIN = (() => {
     });
     return { loss, acc: hit / n, gW, gb };
   }
+  // one update; the gradient at the new weights is computed right away and kept for the next step,
+  // so the loss returned belongs to the weights now in net (the ones the boundary is drawn from) at no extra cost
   function step(net, D, { act, opt, lr }) {
-    const r = lossGrad(net, D, act), b1 = 0.9, b2 = 0.999;
+    const r = net.next?.D === D && net.next.act === act ? net.next.r : lossGrad(net, D, act), b1 = 0.9, b2 = 0.999;
     net.t++;
     const upd = (P, G, M, V) => {
       if (opt === 'sgd') return P - lr * G;
@@ -133,9 +135,25 @@ const TRAIN = (() => {
     const cell = (arr, i) => ({ get val() { return arr[i]; }, set val(v) { arr[i] = v; } });
     net.W.forEach((W, k) => W.forEach((row, i) => row.forEach((w, j) => { row[j] = upd(w, r.gW[k][i][j], cell(net.m.W[k][i], j), cell(net.v.W[k][i], j)); })));
     net.b.forEach((b, k) => b.forEach((w, j) => { b[j] = upd(w, r.gb[k][j], cell(net.m.b[k], j), cell(net.v.b[k], j)); }));
-    return { loss: r.loss, acc: r.acc };
+    net.next = { D, act, r: lossGrad(net, D, act) };
+    return { loss: net.next.r.loss, acc: net.next.r.acc };
   }
   const prob = (net, x, y, act) => forward(net, [x, y], act).p[1];
+  // reads the loss curve h (h[k] = loss after k steps) the way a person would; index.html turns the verdict into advice
+  function diagnose(h, acc, D) {
+    const n = h.length - 1, L0 = h[0], last = h.at(-1);
+    // a dead net predicts the class shares for every point: its loss is their entropy (ln 2 when balanced), its accuracy the larger share
+    const p = D.Y.reduce((s, y) => s + y, 0) / D.Y.length, xlx = q => q > 0 ? q * Math.log(q) : 0, flat = -xlx(p) - xlx(1 - p);
+    if (!Number.isFinite(last) || last > 10) return 'diverged';
+    if (n === 0) return 'idle';
+    if (n >= 30 && Math.abs(last - flat) < 0.01 && acc <= Math.max(p, 1 - p)) return 'dead';
+    if (acc >= 0.99) return 'solved';
+    const recent = h.slice(-40), ups = recent.filter((v, i) => i && v > recent[i - 1] * (1 + 1e-3)).length; // rises under 0.1% are rounding noise
+    if (n >= 40 && ups > 12) return 'oscillating';
+    if (n >= 300 && last > 0.9 * L0) return 'slow';
+    if (n >= 400 && acc < 0.97 && h.at(-100) - last < 0.01) return 'plateau';
+    return 'learning';
+  }
 
   // self-check: backprop gradients must match finite differences (tanh: smooth everywhere)
   const D = makeData('XOR', 6), net = init(3, 5), { gW } = lossGrad(net, D, 'tanh');
@@ -148,7 +166,7 @@ const TRAIN = (() => {
     worst = Math.max(worst, Math.abs((lp - lm) / (2 * e) - gW[k][i][j]) / Math.max(1e-8, Math.abs(gW[k][i][j])));
   }
   console.assert(worst < 1e-4, 'backprop gradient check failed', worst);
-  return { DATASETS: Object.keys(DATASETS), makeData, init, resetOpt, step, lossGrad, prob, gradCheck: worst };
+  return { DATASETS: Object.keys(DATASETS), makeData, init, resetOpt, step, lossGrad, prob, diagnose, gradCheck: worst };
 })();
 
 // Gradient flowing backwards through many layers (or time steps), with fixed random 32×32 Jacobians.
