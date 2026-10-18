@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests (self-checks of every script, training lab)
+        run: npm test
+      - name: docs/ is up to date with the sources
+        run: |
+          ./build-pages.sh
+          if [ -n "$(git status --porcelain docs)" ]; then
+            git status --short docs
+            echo "::error::docs/ is out of date. Run ./build-pages.sh and commit docs/."
+            exit 1
+          fi
