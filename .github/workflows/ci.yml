@@ -22,3 +22,17 @@ jobs:
             echo "::error::docs/ is out of date. Run ./build-pages.sh and commit docs/."
             exit 1
           fi
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests (3D view, training lab, charts)
+        run: npm run test:e2e

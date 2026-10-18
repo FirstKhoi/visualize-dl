@@ -46,11 +46,13 @@ The attention and convolution demos use small hand-picked inputs so every number
 Open `index.html` in a browser. There is no build step. Three.js, MathJax and the fonts load from CDNs, so you need to be online.
 
 ```sh
-npm test            # Node 22+, no dependencies to install
+npm test            # unit tests: Node 22+, nothing to install
+npm ci && npx playwright install chromium    # once, for the browser tests
+npm run test:e2e    # the page itself in headless Chromium, offline
 ./build-pages.sh    # rebuilds docs/ (the GitHub Pages copy); commit docs/ with your change
 ```
 
-The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, ResNet-50, LSTM, U-Net and the lab's MLP), plus the training lab's update and its advice. CI runs them on every push and fails if `docs/` is out of date.
+The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, ResNet-50, LSTM, U-Net and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
 
 ### Files
 
@@ -59,7 +61,7 @@ index.html        page, 3D scene, panel, lab UI
 blocks.js         shared blocks (attention, FFN, norms…), paper list, concept index
 live.js           what really computes: toy attention, toy conv, gradient experiments, the trainable MLP
 models/*.js       one file per architecture
-tests/            node --test suites
+tests/            node --test suites (tests/e2e: in the browser)
 docs/             copy for GitHub Pages, built by build-pages.sh
 ```
 
@@ -102,11 +104,13 @@ Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc 
 Mở `index.html` bằng trình duyệt, không cần build. Three.js, MathJax và font tải từ CDN nên cần có mạng.
 
 ```sh
-npm test            # Node 22 trở lên, không cần cài gì
+npm test            # unit test: Node 22 trở lên, không cần cài gì
+npm ci && npx playwright install chromium    # một lần, cho test trình duyệt
+npm run test:e2e    # chạy chính trang web trong Chromium headless, không cần mạng
 ./build-pages.sh    # build lại docs/ (bản cho GitHub Pages); commit docs/ cùng thay đổi
 ```
 
-Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, ResNet-50, LSTM, U-Net và MLP của phòng thí nghiệm), cùng bước cập nhật và lời khuyên của phòng thí nghiệm. CI chạy test mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
+Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, ResNet-50, LSTM, U-Net và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
 
 Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là file ngắn), rồi thêm thẻ `<script>` vào `index.html`. Test sẽ tự nhận file mới.
 
