@@ -145,7 +145,7 @@ sorted_p, idx = probs.sort(descending=True)
 keep = sorted_p.cumsum(-1) - sorted_p < 0.9
 sorted_p[~keep] = 0
 next_id = idx.gather(-1, torch.multinomial(sorted_p / sorted_p.sum(-1, keepdim=True), 1))`
-}, { tag: 'Lấy mẫu', size: [1.1, 1.5, 1.3], children: [
+}, { tag: 'Lấy mẫu', size: [1.1, 1.5, 1.3], live: 'sample', children: [
   n('Chia nhiệt độ T', 'norm', `${C.V}`, {
     what: 'Chia mọi logit cho cùng một số T trước khi softmax.',
     formula: [R`z'_k = z_k / T`],
@@ -159,7 +159,7 @@ next_id = idx.gather(-1, torch.multinomial(sorted_p / sorted_p.sum(-1, keepdim=T
     why: 'Khi train, loss là cross-entropy của token đúng ở mọi vị trí: cả chuỗi dài vài nghìn token cho vài nghìn bài tập "đoán token kế" trong một lần chạy.',
     example: sampleSoftmaxEx,
     code: `probs = z.softmax(-1)`
-  }, { size: SLAB }),
+  }, { size: SLAB, live: 'sampleProbs' }),
   n('Top-p (nucleus)', 'norm', `${C.V}`, {
     what: R`Giữ nhóm token nhỏ nhất có tổng xác suất \(\ge p\), bỏ phần còn lại, rồi chuẩn hoá lại cho tổng bằng 1.`,
     formula: [R`V_p = \text{tập nhỏ nhất với} \sum_{k \in V_p} p_k \ge p`, R`p'_k = \frac{p_k}{\sum_{j \in V_p} p_j} \ (k \in V_p), \qquad p'_k = 0 \ (k \notin V_p)`],
@@ -168,14 +168,14 @@ next_id = idx.gather(-1, torch.multinomial(sorted_p / sorted_p.sum(-1, keepdim=T
     code: `sorted_p, idx = probs.sort(descending=True)
 keep = sorted_p.cumsum(-1) - sorted_p < 0.9
 sorted_p[~keep] = 0`
-  }, { tag: 'Top-p', size: SLAB, ref: [ref('topp')] }),
+  }, { tag: 'Top-p', size: SLAB, ref: [ref('topp')], live: 'sample' }),
   n('Bốc thăm', 'io', '1 token', {
     what: 'Chọn ngẫu nhiên một token theo phân bố đã cắt, nối id đó vào cuối chuỗi, rồi chạy lại mạng cho bước sau.',
     formula: [R`x_{n+1} \sim \mathrm{Categorical}(p'), \qquad x_{1:n+1} = [x_{1:n};\ x_{n+1}]`],
     why: 'Nhờ KV cache, bước sau chỉ phải tính cho đúng 1 token mới thay vì cả chuỗi. Sinh dừng khi gặp token kết thúc hoặc đủ số token tối đa.',
     code: `next_id = idx.gather(-1, torch.multinomial(sorted_p / sorted_p.sum(-1, keepdim=True), 1))
 ids = torch.cat([ids, next_id], dim=1)`
-  }, { size: [0.5, 1.4, 0.5] })
+  }, { size: [0.5, 1.4, 0.5], live: 'sampleDraws' })
 ] });
 
 MODELS.llm = n('LLaMA 3 8B', 'block', `n token → token kế tiếp`, {

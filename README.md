@@ -25,7 +25,7 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | Model | What you see | Runs in the page |
 |---|---|---|
 | **Transformer** (Vaswani et al., 2017, base) | Encoder–decoder, post-LN, sinusoidal PE, cross-attention | Self-attention on a toy sentence, with causal mask and √dₖ scaling toggles |
-| **LLaMA 3 8B** | Decoder-only, RMSNorm, RoPE, grouped-query attention, SwiGLU, KV cache, sampling | Masked self-attention on the same toy sentence |
+| **LLaMA 3 8B** | Decoder-only, RMSNorm, RoPE, grouped-query attention, SwiGLU, KV cache, sampling | Masked self-attention on the same toy sentence; next-word sampling with temperature and top-p, and draws you can count |
 | **ViT-B/16** | Patch embedding, [CLS] token, learned positions, pre-LN encoder | – |
 | **ResNet-50** | Stem, bottleneck blocks, BatchNorm, projection shortcuts | Editable 8×8 convolution; gradient through up to 100 layers with and without shortcuts |
 | **LSTM** (Zaremba et al., 2014) | Gates, cell state, unrolled time steps | Gradient through time: plain RNN vs. the LSTM cell path |
@@ -69,7 +69,7 @@ To add a model, create `models/<name>.js` (see `models/vit.js` for a short one) 
 
 ### Roadmap
 
-1. Demos for missing ideas: sampling temperature and top-p, normalisation axes, ViT patches, receptive fields, RoPE, BPE.
+1. Demos for missing ideas: normalisation axes, ViT patches, receptive fields, RoPE, BPE.
 2. Real trained models in the browser: a small CNN on MNIST where you draw a digit, and a tiny Vietnamese GPT trained on *Truyện Kiều*.
 3. New architectures built from existing blocks: diffusion, CLIP, mixture of experts, VAE.
 4. English content.
@@ -90,7 +90,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | Mạng | Nội dung | Chạy thật trong trang |
 |---|---|---|
 | **Transformer** (2017, base) | Encoder–decoder, Post-LN, PE hình sin, cross-attention | Self-attention trên câu đồ chơi, bật/tắt mặt nạ nhân quả và chia √dₖ |
-| **LLaMA 3 8B** | Chỉ decoder, RMSNorm, RoPE, GQA, SwiGLU, KV cache, lấy mẫu | Attention có mặt nạ trên cùng câu đồ chơi |
+| **LLaMA 3 8B** | Chỉ decoder, RMSNorm, RoPE, GQA, SwiGLU, KV cache, lấy mẫu | Attention có mặt nạ trên cùng câu đồ chơi; lấy mẫu từ kế tiếp với nhiệt độ T và top-p, bốc thăm và đếm số lần |
 | **ViT-B/16** | Patch embedding, token [CLS], vị trí học được, encoder Pre-LN | – |
 | **ResNet-50** | Stem, khối bottleneck, BatchNorm, đường tắt chiếu | Tích chập 8×8 sửa được; gradient qua tối đa 100 lớp, có và không có đường tắt |
 | **LSTM** (2014) | Các cổng, bộ nhớ c, trải theo thời gian | Gradient đi ngược theo thời gian: RNN thường so với đường c của LSTM |

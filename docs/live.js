@@ -251,3 +251,31 @@ const GRAD = (() => {
   console.assert(a.skip.every(v => Math.abs(v - 1) < 1e-9) && a.plain[20] < 1e-4 && Math.abs(b.skip[10] - 0.9 ** 10) < 1e-9, 'gradient experiment mismatch');
   return { MAX, res, rnn };
 })();
+
+// Next-token sampling on a toy distribution: hand-picked logits for the word after "Hôm nay trời rất", so the effect of
+// temperature and top-p can be read. One token per word here; a real tokenizer often splits Vietnamese words further.
+const SAMPLE = (() => {
+  const PROMPT = 'Hôm nay trời rất';
+  const TOKENS = ['đẹp', 'nóng', 'lạnh', 'nắng', 'oi', 'mát', 'âm u', 'trong', 'xanh', 'đẹp trai', 'ngon', 'chạy'];
+  const LOGITS = [3.2, 2.9, 2.5, 2.2, 1.7, 1.4, 1.0, 0.6, 0.3, -0.6, -1.4, -2.0];
+  // softmax(z / T); top-p keeps tokens, most likely first, while the probability before them is still < p
+  // (the one that reaches p stays, as in the PyTorch code of the block), then renormalises what is kept
+  function nucleus(z, T, p) {
+    const m = Math.max(...z), e = z.map(v => Math.exp((v - m) / T)), s = e.reduce((a, b) => a + b, 0), probs = e.map(v => v / s);
+    const keep = probs.map(() => false);
+    let before = 0;
+    for (const i of probs.map((_, i) => i).sort((a, b) => probs[b] - probs[a])) { if (before >= p) break; keep[i] = true; before += probs[i]; }
+    const mass = probs.reduce((a, v, i) => a + (keep[i] ? v : 0), 0);
+    return { probs, keep, mass, final: probs.map((v, i) => keep[i] ? v / mass : 0) };
+  }
+  // u uniform in [0, 1): the token whose slice of `final` holds u (the last kept one if rounding leaves a sliver at the end)
+  function draw(final, u) {
+    let c = 0;
+    for (let i = 0; i < final.length; i++) { c += final[i]; if (final[i] > 0 && u < c) return i; }
+    return final.findLastIndex(v => v > 0);
+  }
+  // self-check against the worked example of the "Top-p" block: logits [2, 1, 0.1], T = 1, p = 0.9 → [0.731, 0.269, 0]
+  const ex = nucleus([2, 1, 0.1], 1, 0.9).final;
+  console.assert(Math.abs(ex[0] - 0.731) < 1e-3 && Math.abs(ex[1] - 0.269) < 1e-3 && ex[2] === 0, 'top-p example mismatch');
+  return { PROMPT, TOKENS, LOGITS, nucleus, draw };
+})();

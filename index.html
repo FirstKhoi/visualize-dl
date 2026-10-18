@@ -191,6 +191,18 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 #lab-canvas { display: block; width: min(100%, 280px); height: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
 .lab-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px !important; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lab-stats b { color: var(--fg); font-family: var(--f-mono); }
+/* toy sampling: one row per word; faint bar = probability before top-p, solid bar = after */
+.smp-prompt { margin-top: 10px !important; font-size: 15px; }
+.smp-prompt b { color: var(--accent); }
+.dist { display: grid; gap: 3px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12.5px; }
+.live label.sl { display: grid; gap: 2px; } /* not the checkbox rows of the attention demo */
+.drow { display: grid; grid-template-columns: 5em 1fr 3.2em 2.2em; gap: 8px; align-items: center; }
+.drow .dw { font-weight: 600; white-space: nowrap; }
+.dbar { position: relative; height: 10px; background: var(--scene); border-radius: 3px; overflow: hidden; }
+.dbar i { position: absolute; inset: 0 auto 0 0; background: var(--chart-a); border-radius: 3px; }
+.dbar i.pre { background: var(--line); }
+.drow .dp, .drow .dn { font: 12px var(--f-mono); text-align: right; color: var(--muted); }
+.drow.cut .dw { color: var(--muted); text-decoration: line-through; }
 
 /* upright tablets (iPad up to 11") and upright phones: panel moves under the 3D view */
 @media (max-width: 900px) and (orientation: portrait) {
@@ -617,7 +629,10 @@ const LIVE = {
     .map(([k, pick]) => [k, { demo: 'attn', matrix: memo => pick(memo.attn ??= TOY.run(live.words, live)), section: () => liveSection(k) }])),
   conv: { demo: 'conv', matrix: memo => (memo.conv ??= convRun()).Y, section: () => convSection() },
   ...Object.fromEntries([1, 2, 3].map(k => [`W${k}`, { demo: 'lab', matrix: () => lab.net.W[k - 1] }])), // the lab's real weights
-  boundary: { demo: 'lab', image: () => labImg } // the lab's decision boundary
+  boundary: { demo: 'lab', image: () => labImg }, // the lab's decision boundary
+  sample: { demo: 'sample', image: () => smpImage('final'), section: () => smpSection() }, // toy next-word sampling: after top-p
+  sampleProbs: { demo: 'sample', image: () => smpImage('probs'), section: () => smpSection() }, // … before the cut
+  sampleDraws: { demo: 'sample', image: () => smpImage('counts'), section: () => smpSection() } // … what the draws picked
 };
 const showsDemo = (L, demo) => L.items.some(it => it.live && LIVE[it.node.live].demo === demo);
 const fmtV = v => v === -Infinity ? '−∞' : Number.isInteger(v) ? String(v) : v.toFixed(2);
@@ -815,6 +830,7 @@ const rehover = () => { if (!hoverAt) return; const t = document.elementFromPoin
 panel.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.labkey) return labSlider(t);
+  if (t.dataset.smp) return smpSlider(t);
   if (!t.dataset.exp) return;
   exp[t.dataset.exp][t.dataset.key] = +t.value;
   panel.querySelector(`#o-${t.dataset.exp}-${t.dataset.key}`).textContent = t.value;
@@ -949,6 +965,67 @@ function labSlider(t) {
   labUI();
 }
 
+// ---------- toy next-word sampling: SAMPLE (live.js) under the temperature and top-p set here ----------
+const TEMPS = [0.1, 0.3, 0.5, 0.7, 1, 1.3, 1.6, 2], TOPPS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 1];
+const smp = { T: 3, p: 5, counts: SAMPLE.TOKENS.map(() => 0), last: null, coin: rng(2024) }; // T = 0.7, top-p = 0.9 as in the block's code
+const smpDist = () => SAMPLE.nucleus(SAMPLE.LOGITS, TEMPS[smp.T], TOPPS[smp.p]);
+const smpPct = v => `${(v * 100).toFixed(v > 0 && v < 0.1 ? 1 : 0)}%`;
+const smpCanvas = {};
+// bars for the 3D sprite, on an absolute 0–1 scale so a sharper or flatter distribution shows as such; cut words in grey
+function smpImage(kind) {
+  const c = smpCanvas[kind] ??= Object.assign(document.createElement('canvas'), { width: 384, height: 384 }), g = c.getContext('2d'), S = c.width;
+  const d = smpDist(), n = smp.counts.reduce((a, b) => a + b, 0);
+  const v = kind === 'probs' ? d.probs : kind === 'final' ? d.final : smp.counts.map(k => n ? k / n : 0);
+  const order = d.probs.map((_, i) => i).sort((a, b) => d.probs[b] - d.probs[a]), w = (S - 24) / order.length;
+  g.fillStyle = theme.surface.getStyle(); g.fillRect(0, 0, S, S);
+  order.forEach((i, k) => {
+    const h = Math.max(2, v[i] * (S - 24));
+    g.fillStyle = (kind === 'probs' || d.keep[i] ? theme.chartA : theme.line).getStyle();
+    g.fillRect(12 + k * w + 3, S - 12 - h, w - 6, h);
+  });
+  return c;
+}
+const smpSlide = (key, label, values) => `<label class="sl" for="smp-${key}"><span>${label}<output id="o-smp-${key}">${values[smp[key]]}</output></span><input type="range" id="smp-${key}" data-smp="${key}" min="0" max="${values.length - 1}" step="1" value="${smp[key]}"></label>`;
+function smpOut() {
+  const d = smpDist(), n = smp.counts.reduce((a, b) => a + b, 0), T = TEMPS[smp.T];
+  const order = d.probs.map((_, i) => i).sort((a, b) => d.probs[b] - d.probs[a]), top = order[0], k = d.keep.filter(Boolean).length;
+  const shape = T < 1 ? 'T < 1 kéo các logit xa nhau: phân bố nhọn hơn, càng gần việc luôn chọn từ chắc nhất (greedy).'
+    : T > 1 ? 'T > 1 làm phẳng phân bố: từ hiếm có cơ hội hơn, câu đa dạng hơn nhưng dễ lạc đề.' : 'T = 1 dùng nguyên phân bố mà mô hình đưa ra.';
+  return `<p class="smp-prompt">${SAMPLE.PROMPT} <b>${smp.last === null ? '___' : SAMPLE.TOKENS[smp.last]}</b></p>`
+    + `<ol class="dist" aria-label="Xác suất của từ kế tiếp sau top-p; cột cuối là số lần đã bốc">` + order.map(i => `<li class="drow${d.keep[i] ? '' : ' cut'}">`
+      + `<span class="dw">${SAMPLE.TOKENS[i]}</span><span class="dbar"><i class="pre" style="width: ${(d.probs[i] * 100).toFixed(1)}%"></i><i style="width: ${(d.final[i] * 100).toFixed(1)}%"></i></span>`
+      + `<span class="dp">${d.keep[i] ? smpPct(d.final[i]) : 'cắt'}</span><span class="dn">${n ? smp.counts[i] : ''}</span></li>`).join('') + '</ol>'
+    + `<p class="reading"><span>Top-p ${TOPPS[smp.p]} giữ ${k}/${order.length} từ, chiếm ${smpPct(d.mass)} xác suất trước khi cắt; "${SAMPLE.TOKENS[top]}" chắc nhất với ${smpPct(d.final[top])} sau khi chuẩn hoá lại. ${shape}${n ? ` Đã bốc ${n} lần.` : ''}</span></p>`;
+}
+const smpSection = () => `<section class="live sample"><h3>Số chạy thật</h3>
+  <p class="kids-hint">Logit đồ chơi, đặt tay cho từ đứng sau "${SAMPLE.PROMPT}". Mỗi token ở đây là một từ cho dễ đọc; LLaMA thật chọn trong 128 256 token. Vạch nhạt là xác suất trước khi cắt, vạch đậm là sau top-p. Kéo T và top-p: bảng và khối 3D đổi ngay.</p>
+  <div class="live-ctl">
+    ${smpSlide('T', 'Nhiệt độ T', TEMPS)}
+    ${smpSlide('p', 'Top-p', TOPPS)}
+    <div class="lab-btns"><button type="button" class="labbtn primary" data-smpdo="draw">Bốc 1 từ</button><button type="button" class="labbtn" data-smpdo="draw100">Bốc 100 lần</button><button type="button" class="labbtn" data-smpdo="clear">Xoá đếm</button></div>
+  </div>
+  <div class="smp-out">${smpOut()}</div></section>`;
+function smpRefresh() {
+  const box = panel.querySelector('.smp-out');
+  if (box) box.innerHTML = smpOut();
+  if (showsDemo(level, 'sample')) paintLive(level);
+}
+function smpSlider(t) { // a new distribution: the old draws no longer describe it
+  const key = t.dataset.smp;
+  smp[key] = +t.value;
+  panel.querySelector(`#o-smp-${key}`).textContent = (key === 'T' ? TEMPS : TOPPS)[smp[key]];
+  smp.counts.fill(0); smp.last = null;
+  smpRefresh();
+}
+function smpDo(a) {
+  if (a === 'clear') { smp.counts.fill(0); smp.last = null; }
+  else {
+    const d = smpDist();
+    for (let i = 0; i < (a === 'draw100' ? 100 : 1); i++) { smp.last = SAMPLE.draw(d.final, smp.coin()); smp.counts[smp.last]++; }
+  }
+  smpRefresh();
+}
+
 panel.addEventListener('change', e => {
   if (e.target.id === 'live-causal') live.causal = e.target.checked;
   else if (e.target.id === 'live-scale') live.scale = e.target.checked;
@@ -1009,6 +1086,7 @@ panel.addEventListener('click', e => {
   else if (b.dataset.out) { conv.pick = b.dataset.out.split(',').map(Number); refreshConv(); }
   else if (b.dataset.jump) jump(b.dataset.jump);
   else if (b.dataset.lab) labAction(b.dataset.lab);
+  else if (b.dataset.smpdo) smpDo(b.dataset.smpdo);
   else if (b.dataset.labset) labSet(b.dataset.labset, b.dataset.val);
   else if (b.dataset.act === 'link') copyLink(b);
   else if (b.dataset.act === 'back') select(null);
