@@ -72,7 +72,7 @@ const TOYCONV = (() => {
   return { N, IMAGES, KERNELS, outSize, run };
 })();
 
-// Tiny MLP trained in the page: 2 → H → H → 2, softmax + cross-entropy, full batch, hand-written backprop.
+// Tiny MLP trained in the page: 2 → H → H → 2, softmax + cross-entropy, full batch or mini-batches, hand-written backprop.
 const TRAIN = (() => {
   // each generator returns [x, y, label] in roughly [-1, 1]²
   const DATASETS = {
@@ -82,16 +82,17 @@ const TRAIN = (() => {
     // ~1.9 turns: 8 hidden units stall near 95%, 16 reach 100%
     'Xoắn ốc': (r, g, i) => { const c = i % 2, t = 0.25 + 2.6 * r(), a = 4.5 * t + c * Math.PI; return [0.36 * t * Math.cos(a) + 0.03 * g(), 0.36 * t * Math.sin(a) + 0.03 * g(), c]; }
   };
-  function makeData(name, n = 200) {
-    const r = rng(42), g = gauss(r), X = [], Y = [];
-    for (let i = 0; i < n; i++) { const [x, y, c] = DATASETS[name](r, g, i); X.push([x, y]); Y.push(c); }
+  // n points drawn from `seed`; with flip > 0 each label is swapped with that probability (label noise) and the points stay put
+  function makeData(name, n = 200, { seed = 42, flip = 0 } = {}) {
+    const r = rng(seed), g = gauss(r), coin = rng(seed + 1), X = [], Y = [];
+    for (let i = 0; i < n; i++) { const [x, y, c] = DATASETS[name](r, g, i); X.push([x, y]); Y.push(coin() < flip ? 1 - c : c); }
     return { X, Y };
   }
   const mat = (a, b, f) => Array.from({ length: a }, () => Array.from({ length: b }, f));
   // He initialisation: weights ~ N(0, 2/fan_in), biases 0
   function init(H, seed = 1) {
     const g = gauss(rng(seed)), w = (a, b) => mat(a, b, () => g() * Math.sqrt(2 / a));
-    const net = { H, W: [w(2, H), w(H, H), w(H, 2)], b: [new Array(H).fill(0), new Array(H).fill(0), [0, 0]], t: 0 };
+    const net = { H, seed, W: [w(2, H), w(H, H), w(H, 2)], b: [new Array(H).fill(0), new Array(H).fill(0), [0, 0]], t: 0 };
     resetOpt(net);
     return net;
   }
@@ -123,10 +124,22 @@ const TRAIN = (() => {
     });
     return { loss, acc: hit / n, gW, gb };
   }
-  // one update; the gradient at the new weights is computed right away and kept for the next step,
-  // so the loss returned belongs to the weights now in net (the ones the boundary is drawn from) at no extra cost
-  function step(net, D, { act, opt, lr }) {
-    const r = net.next?.D === D && net.next.act === act ? net.next.r : lossGrad(net, D, act), b1 = 0.9, b2 = 0.999;
+  // mini-batches walk through a shuffled order of the points, reshuffled each epoch (a short last batch is skipped)
+  function nextBatch(net, D, size) {
+    const n = D.X.length, s = net.batches ??= { order: [], at: 0, coin: rng(net.seed + 99) };
+    if (s.order.length !== n || s.at + size > n) { // a new epoch: Fisher–Yates shuffle
+      s.order = Array.from({ length: n }, (_, i) => i);
+      for (let i = n - 1; i > 0; i--) { const j = Math.floor(s.coin() * (i + 1)); [s.order[i], s.order[j]] = [s.order[j], s.order[i]]; }
+      s.at = 0;
+    }
+    const idx = s.order.slice(s.at, s.at += size);
+    return { X: idx.map(i => D.X[i]), Y: idx.map(i => D.Y[i]) };
+  }
+  // one update from the gradient of a mini-batch (`batch` points; all of them when 0), with weight decay pulling every
+  // weight (not the biases) towards 0 by η·λ·w after the optimizer's step (decoupled, as in AdamW);
+  // returns the loss and accuracy of the new weights on the whole set, the ones the boundary is drawn from
+  function step(net, D, { act, opt, lr, decay = 0, batch = 0 }) {
+    const r = lossGrad(net, batch && batch < D.X.length ? nextBatch(net, D, batch) : D, act), b1 = 0.9, b2 = 0.999;
     net.t++;
     const upd = (P, G, M, V, i) => { // M[i], V[i]: the optimizer's memory for this parameter
       if (opt === 'sgd') return P - lr * G;
@@ -134,21 +147,33 @@ const TRAIN = (() => {
       M[i] = b1 * M[i] + (1 - b1) * G; V[i] = b2 * V[i] + (1 - b2) * G * G; // Adam
       return P - lr * (M[i] / (1 - b1 ** net.t)) / (Math.sqrt(V[i] / (1 - b2 ** net.t)) + 1e-8);
     };
-    net.W.forEach((W, k) => W.forEach((row, i) => row.forEach((w, j) => { row[j] = upd(w, r.gW[k][i][j], net.m.W[k][i], net.v.W[k][i], j); })));
+    net.W.forEach((W, k) => W.forEach((row, i) => row.forEach((w, j) => { row[j] = upd(w, r.gW[k][i][j], net.m.W[k][i], net.v.W[k][i], j) - lr * decay * w; })));
     net.b.forEach((b, k) => b.forEach((w, j) => { b[j] = upd(w, r.gb[k][j], net.m.b[k], net.v.b[k], j); }));
-    net.next = { D, act, r: lossGrad(net, D, act) };
-    return { loss: net.next.r.loss, acc: net.next.r.acc };
+    return evaluate(net, D, act);
   }
-  // p(class 1) as a function of (x, y), without the arrays forward() builds per point: the boundary picture needs ~3 300 of them
-  function prober(net, act) {
+  // the class-1 margin z₁ − z₀ at one point, without the arrays forward() builds per point: the boundary picture
+  // needs ~3 300 of them per redraw, and the lab measures the test set after every step
+  function margin(net, act) {
     const f = ACT[act][0], H = net.H, [W1, W2, W3] = net.W, [b1, b2, b3] = net.b, a1 = new Float64Array(H), a2 = new Float64Array(H);
     return (x, y) => {
       for (let j = 0; j < H; j++) a1[j] = f(x * W1[0][j] + y * W1[1][j] + b1[j]);
       for (let j = 0; j < H; j++) { let s = b2[j]; for (let i = 0; i < H; i++) s += a1[i] * W2[i][j]; a2[j] = f(s); }
       let z0 = b3[0], z1 = b3[1];
       for (let i = 0; i < H; i++) { z0 += a2[i] * W3[i][0]; z1 += a2[i] * W3[i][1]; }
-      return 1 / (1 + Math.exp(z0 - z1)); // softmax over two logits = sigmoid of their difference
+      return z1 - z0;
     };
+  }
+  const prober = (net, act) => { const m = margin(net, act); return (x, y) => 1 / (1 + Math.exp(-m(x, y))); }; // softmax over two logits = sigmoid of their difference
+  // loss and accuracy over a whole set, forward only: the same numbers lossGrad gives
+  function evaluate(net, D, act) {
+    const m = margin(net, act), n = D.X.length;
+    let loss = 0, hit = 0;
+    D.X.forEach(([x, y], i) => {
+      const d = m(x, y), py = 1 / (1 + Math.exp(D.Y[i] ? -d : d)); // p of the true label
+      loss -= Math.log(Math.max(py, 1e-12)) / n;
+      if ((d > 0 ? 1 : 0) === D.Y[i]) hit++;
+    });
+    return { loss, acc: hit / n };
   }
   // steps each animation frame owes so a run goes at `rate` steps per second whatever the display's refresh rate;
   // counted from the run's start (no drift), and after a stall (hidden tab, slow frame) a frame owes at most `most`
@@ -163,19 +188,29 @@ const TRAIN = (() => {
     };
   }
   // reads the loss curve h (h[k] = loss after k steps) the way a person would; index.html turns the verdict into advice
-  function diagnose(h, acc, D) {
+  // test = { h, acc } of the held-out set, when there is one
+  function diagnose(h, acc, D, test) {
     const n = h.length - 1, L0 = h[0], last = h.at(-1);
     // a dead net predicts the class shares for every point: its loss is their entropy (ln 2 when balanced), its accuracy the larger share
     const p = D.Y.reduce((s, y) => s + y, 0) / D.Y.length, xlx = q => q > 0 ? q * Math.log(q) : 0, flat = -xlx(p) - xlx(1 - p);
     if (!Number.isFinite(last) || last > 10) return 'diverged';
     if (n === 0) return 'idle';
     if (n >= 30 && Math.abs(last - flat) < 0.01 && acc <= Math.max(p, 1 - p)) return 'dead';
+    if (test && overfits(h, test.h)) return 'overfitting';
     if (acc >= 0.99) return 'solved';
     const recent = h.slice(-40), ups = recent.filter((v, i) => i && v > recent[i - 1] * (1 + 1e-3)).length; // rises under 0.1% are rounding noise
     if (n >= 40 && ups > 12) return 'oscillating';
     if (n >= 300 && last > 0.9 * L0) return 'slow';
     if (n >= 400 && acc < 0.97 && h.at(-100) - last < 0.01) return 'plateau';
     return 'learning';
+  }
+
+  // the test loss has climbed well above its lowest point and well above the train loss, which kept falling since then
+  // (with noisy training labels the train loss stays high, so a test loss drifting up from an early low is no sign)
+  function overfits(h, t) {
+    if (h.length < 101) return false;
+    const k = t.indexOf(Math.min(...t)), last = t.at(-1);
+    return k >= 0 && last > 1.2 * t[k] + 0.02 && last - h.at(-1) > 0.15 && h.at(-1) < h[k];
   }
 
   // self-check: backprop gradients must match finite differences (tanh: smooth everywhere)
@@ -189,7 +224,7 @@ const TRAIN = (() => {
     worst = Math.max(worst, Math.abs((lp - lm) / (2 * e) - gW[k][i][j]) / Math.max(1e-8, Math.abs(gW[k][i][j])));
   }
   console.assert(worst < 1e-4, 'backprop gradient check failed', worst);
-  return { DATASETS: Object.keys(DATASETS), makeData, init, resetOpt, step, lossGrad, prober, pacer, diagnose, gradCheck: worst };
+  return { DATASETS: Object.keys(DATASETS), makeData, init, resetOpt, step, lossGrad, evaluate, prober, pacer, diagnose, gradCheck: worst };
 })();
 
 // Gradient flowing backwards through many layers (or time steps), with fixed random 32×32 Jacobians.

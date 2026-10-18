@@ -30,7 +30,7 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | **ResNet-50** | Stem, bottleneck blocks, BatchNorm, projection shortcuts | Editable 8×8 convolution; gradient through up to 100 layers with and without shortcuts |
 | **LSTM** (Zaremba et al., 2014) | Gates, cell state, unrolled time steps | Gradient through time: plain RNN vs. the LSTM cell path |
 | **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop | Unpadded 8×8 convolution |
-| **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, decision boundary, loss curve, advice read from the curve, real weight matrices painted on the 3D blocks |
+| **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, full batch or mini-batches, label noise, weight decay, a held-out test set with train/test loss curves, decision boundary, advice read from the curves (including overfitting), real weight matrices painted on the 3D blocks |
 
 The attention and convolution demos use small hand-picked inputs so every number can be read. Only the training lab learns its weights.
 
@@ -69,7 +69,7 @@ To add a model, create `models/<name>.js` (see `models/vit.js` for a short one) 
 
 ### Roadmap
 
-1. Demos for missing ideas: sampling temperature and top-p, overfitting in the lab, normalisation axes, ViT patches, receptive fields, RoPE, BPE.
+1. Demos for missing ideas: sampling temperature and top-p, normalisation axes, ViT patches, receptive fields, RoPE, BPE.
 2. Real trained models in the browser: a small CNN on MNIST where you draw a digit, and a tiny Vietnamese GPT trained on *Truyện Kiều*.
 3. New architectures built from existing blocks: diffusion, CLIP, mixture of experts, VAE.
 4. English content.
@@ -95,7 +95,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **ResNet-50** | Stem, khối bottleneck, BatchNorm, đường tắt chiếu | Tích chập 8×8 sửa được; gradient qua tối đa 100 lớp, có và không có đường tắt |
 | **LSTM** (2014) | Các cổng, bộ nhớ c, trải theo thời gian | Gradient đi ngược theo thời gian: RNN thường so với đường c của LSTM |
 | **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối | Tích chập 8×8 không đệm |
-| **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, ranh giới quyết định, đường loss, lời khuyên đọc từ đường loss, ma trận trọng số thật tô lên khối 3D |
+| **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, full batch hoặc mini-batch, nhiễu nhãn, weight decay, tập test riêng với đường loss train/test, ranh giới quyết định, lời khuyên đọc từ đường loss (kể cả overfitting), ma trận trọng số thật tô lên khối 3D |
 
 Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc được từng con số. Chỉ phòng thí nghiệm huấn luyện là học trọng số thật.
 

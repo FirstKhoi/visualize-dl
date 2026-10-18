@@ -52,7 +52,9 @@ const PAPER = {
   adam: ['Kingma & Ba (2014), Adam: A Method for Stochastic Optimization', 'https://arxiv.org/abs/1412.6980'],
   heinit: ['He và cộng sự (2015), Delving Deep into Rectifiers (khởi tạo He)', 'https://arxiv.org/abs/1502.01852'],
   momentum: ['Sutskever và cộng sự (2013), On the importance of initialization and momentum in deep learning', 'https://proceedings.mlr.press/v28/sutskever13.html'],
-  playground: ['Smilkov & Carter, TensorFlow Playground (ý tưởng gốc của phòng thí nghiệm này)', 'https://playground.tensorflow.org/']
+  playground: ['Smilkov & Carter, TensorFlow Playground (ý tưởng gốc của phòng thí nghiệm này)', 'https://playground.tensorflow.org/'],
+  adamw: ['Loshchilov & Hutter (2019), Decoupled Weight Decay Regularization', 'https://arxiv.org/abs/1711.05101'],
+  dlbook: ['Goodfellow, Bengio & Courville (2016), Deep Learning, chương 7: Regularization', 'https://www.deeplearningbook.org/contents/regularization.html']
 };
 const ref = (key, note) => ({ t: PAPER[key][0], u: PAPER[key][1], note });
 

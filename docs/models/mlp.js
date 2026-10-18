@@ -28,24 +28,29 @@ MODELS.mlp = n('MLP: phòng thí nghiệm huấn luyện', 'block', '2 toạ đ�
     R`p = \mathrm{softmax}\big(f(f(x W_1 + b_1)\, W_2 + b_2)\, W_3 + b_3\big), \qquad L = -\frac{1}{n}\sum_i \log p_{i,\,y_i}`,
     R`\text{SGD:}\quad \theta \leftarrow \theta - \eta\, \nabla_\theta L`,
     R`\text{Momentum:}\quad v \leftarrow 0.9\, v + \nabla_\theta L, \qquad \theta \leftarrow \theta - \eta\, v`,
-    R`\text{Adam:}\quad m \leftarrow \beta_1 m + (1 - \beta_1) g, \quad v \leftarrow \beta_2 v + (1 - \beta_2) g^2, \quad \theta \leftarrow \theta - \eta\, \frac{\hat m}{\sqrt{\hat v} + \epsilon}`
+    R`\text{Adam:}\quad m \leftarrow \beta_1 m + (1 - \beta_1) g, \quad v \leftarrow \beta_2 v + (1 - \beta_2) g^2, \quad \theta \leftarrow \theta - \eta\, \frac{\hat m}{\sqrt{\hat v} + \epsilon}`,
+    R`\text{Weight decay:}\quad W \leftarrow W - \eta\,(\Delta + \lambda W), \qquad \Delta = \text{bước của bộ tối ưu (với SGD là } \nabla_W L\text{)}`
   ],
-  why: 'Learning rate η là núm quan trọng nhất: quá nhỏ thì học rất chậm, quá lớn thì mỗi bước nhảy qua cả thung lũng của loss. Adam tự co giãn bước đi cho từng tham số theo độ lớn gradient gần đây, nên ít nhạy với η hơn SGD. Lớp ẩn và phi tuyến là thứ cho phép mạng vẽ ranh giới cong; số neuron quyết định ranh giới phức tạp được đến đâu.',
-  example: 'Đo trên chính trang này (bộ "Vòng tròn", 8 neuron, ReLU): Adam với η = 0.03 đưa loss xuống dưới 0.1 sau 40 bước; SGD cùng η sau 600 bước vẫn còn 0.145; η = 3 làm ReLU chết hết, loss kẹt ở 0.693 và độ chính xác 50%. Bộ "Xoắn ốc": 8 neuron kẹt quanh 94%, 16 neuron đạt 100% sau khoảng 180 bước.',
+  why: 'Learning rate η là núm quan trọng nhất: quá nhỏ thì học rất chậm, quá lớn thì mỗi bước nhảy qua cả thung lũng của loss. Adam tự co giãn bước đi cho từng tham số theo độ lớn gradient gần đây, nên ít nhạy với η hơn SGD. Lớp ẩn và phi tuyến là thứ cho phép mạng vẽ ranh giới cong; số neuron quyết định ranh giới phức tạp được đến đâu. Nhưng ranh giới càng tự do thì mạng càng dễ học thuộc cả những nhãn sai: tập test, không bao giờ dùng để học, là cách duy nhất biết mạng có tổng quát hoá hay không. Loss train còn giảm mà loss test tăng là overfitting. Weight decay kéo mọi trọng số về 0 một chút mỗi bước, buộc mạng chọn ranh giới đơn giản hơn; mini-batch làm mỗi bước rẻ hơn nhưng nhiễu hơn.',
+  example: 'Đo trên chính trang này (bộ "Vòng tròn", 8 neuron, ReLU): Adam với η = 0.03 đưa loss xuống dưới 0.1 sau 40 bước; SGD cùng η sau 600 bước vẫn còn 0.145; η = 3 làm ReLU chết hết, loss kẹt ở 0.693 và độ chính xác 50%. Bộ "Xoắn ốc": 8 neuron kẹt quanh 94%, 16 neuron đạt 100% sau khoảng 180 bước. Bộ "Vòng tròn" với 16 neuron và 20% nhãn train bị lật: loss test thấp nhất khoảng 0.18 ngay từ những bước đầu, sau 2 000 bước đã lên 0.35–0.6 trong khi loss train xuống khoảng 0.15–0.2 (con số chính xác khác nhau giữa các trình duyệt, vì sai số làm tròn bị Adam khuếch đại); thêm weight decay λ = 0.1 thì loss test giữ quanh 0.25 và tập test đúng khoảng 92%.',
   params: R`\(2H + H + H^2 + H + 2H + 2 = H^2 + 6H + 2\): với \(H = 8\) là ${pNet(8)} tham số, \(H = 16\) là ${pNet(16)}.`,
   code: `model = nn.Sequential(nn.Linear(2, 8), nn.ReLU(), nn.Linear(8, 8), nn.ReLU(), nn.Linear(8, 2))
-opt = torch.optim.Adam(model.parameters(), lr=0.03)
-for step in range(1000):
-    loss = F.cross_entropy(model(X), y)   # forward + loss
-    opt.zero_grad()
-    loss.backward()                       # backprop: tính mọi gradient
-    opt.step()                            # cập nhật trọng số`
+opt = torch.optim.AdamW(model.parameters(), lr=0.03, weight_decay=0.0)  # λ; trang này không giảm bias
+loader = DataLoader(TensorDataset(X, y), batch_size=200, shuffle=True, drop_last=True)  # thử 32 hoặc 8
+for epoch in range(1000):
+    for xb, yb in loader:
+        loss = F.cross_entropy(model(xb), yb)   # forward + loss
+        opt.zero_grad()
+        loss.backward()                         # backprop: tính mọi gradient
+        opt.step()                              # cập nhật trọng số
+    with torch.no_grad():
+        test_loss = F.cross_entropy(model(X_test), y_test)  # chỉ đo, không học từ tập test`
 }, { label: 'Huấn luyện', noIn: true, outLabel: 'loss', exp: 'train',
-  ref: [ref('rumelhart'), ref('adam'), ref('momentum'), ref('heinit', 'khởi tạo trọng số'), ref('playground')],
+  ref: [ref('rumelhart'), ref('adam'), ref('momentum'), ref('heinit', 'khởi tạo trọng số'), ref('adamw', 'weight decay tách khỏi bộ tối ưu'), ref('dlbook', 'overfitting, tập test, weight decay'), ref('playground')],
   children: [
     n('Điểm vào (x, y)', 'io', 'n×2', {
-      what: '200 điểm trên mặt phẳng, mỗi điểm có 2 toạ độ và một nhãn 0 hoặc 1. Mạng phải học một ranh giới tách hai lớp.',
-      why: 'Cả 200 điểm đi qua mạng trong mỗi bước (full batch), nên đường loss trơn. Mạng thật thường dùng mini-batch: nhanh hơn, và nhiễu của nó giúp thoát khỏi điểm tồi.',
+      what: '200 điểm trên mặt phẳng để học (tập train), mỗi điểm có 2 toạ độ và một nhãn 0 hoặc 1; thanh "nhiễu nhãn" lật ngẫu nhiên một phần nhãn đó. 200 điểm khác, nhãn đúng, là tập test chỉ dùng để đo. Mạng phải học một ranh giới tách hai lớp.',
+      why: 'Mặc định cả 200 điểm đi qua mạng trong mỗi bước (full batch), nên đường loss trơn. Chọn batch 32 hoặc 8 để thấy mini-batch: mỗi bước chỉ nhìn một nhóm điểm, xáo lại sau mỗi lượt hết dữ liệu (epoch), nên rẻ hơn nhưng đường loss rung. Mạng thật hầu như luôn dùng mini-batch.',
       code: `X = torch.tensor(points)   # (200, 2)
 y = torch.tensor(labels)   # (200,), 0 hoặc 1`
     }, { tag: 'Điểm (x, y)', size: [0.5, 1.4, 0.5] }),

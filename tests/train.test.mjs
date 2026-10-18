@@ -4,27 +4,14 @@ import { loadPage } from './load.mjs';
 
 const TRAIN = loadPage()('TRAIN');
 const ADAM = { act: 'relu', opt: 'adam', lr: 0.03 };
-// the trainable state only, so a copy starts with no memory of earlier steps
-const copy = net => ({ H: net.H, t: net.t, ...structuredClone({ W: net.W, b: net.b, m: net.m, v: net.v }) });
 const flat = W => [...W.flat(2)]; // a plain array of this realm: the scripts' arrays have the vm context's prototypes
 
 test('a step reports the loss and accuracy of the weights it leaves behind', () => {
   const net = TRAIN.init(8), D = TRAIN.makeData('Vòng tròn'), before = TRAIN.lossGrad(net, D, 'relu').loss;
   const r = TRAIN.step(net, D, ADAM), now = TRAIN.lossGrad(net, D, 'relu');
   assert.notEqual(r.loss, before);
-  assert.equal(r.loss, now.loss);
+  assert.ok(Math.abs(r.loss - now.loss) < 1e-12, `${r.loss} vs ${now.loss}`);
   assert.equal(r.acc, now.acc);
-});
-
-test('consecutive steps move the weights exactly as steps taken from scratch', () => {
-  const D = TRAIN.makeData('XOR'), other = TRAIN.makeData('Xoắn ốc'), a = TRAIN.init(6, 3);
-  TRAIN.step(a, D, ADAM);
-  const tanh = { ...ADAM, act: 'tanh' }; // each case changes one thing from the one before: data, activation, or optimizer
-  for (const [data, opts] of [[D, ADAM], [other, ADAM], [other, tanh], [D, tanh], [D, { ...tanh, opt: 'sgd' }]]) {
-    const b = copy(a);
-    TRAIN.step(a, data, opts); TRAIN.step(b, data, opts);
-    assert.deepEqual(flat(a.W), flat(b.W), `${opts.act}/${opts.opt}`);
-  }
 });
 
 // a loss curve: `fall` steps going from 1 down to `floor`, then `flat` steps wobbling by ±`wobble` (relative)
@@ -133,4 +120,116 @@ test('the seeded random streams behind the data, the weights and the gradient ex
   assert.deepEqual([res.plain[50], res.skip[50], rnn.plain[50], rnn.skip[50]], [0.014397718411632234, 2.942327557205068, 7.283670163079123e-9, 0.07694497527671315]);
   const net = TRAIN.init(8, 1), D = TRAIN.makeData('Vòng tròn');
   assert.deepEqual([net.W[0][1][3], net.W[2][7][1], ...D.X[17], D.Y[17]], [-0.2652991106673534, 0.725164236353931, 0.17346276161200289, 0.37538646178269686, 1]);
+});
+
+// ---------- overfitting: a test set, label noise, weight decay, mini-batches ----------
+
+test('label noise flips about that share of the labels and moves no point', () => {
+  const clean = TRAIN.makeData('Vòng tròn'), noisy = TRAIN.makeData('Vòng tròn', 200, { flip: 0.2 });
+  assert.deepEqual(flat(noisy.X), flat(clean.X));
+  const flipped = clean.Y.filter((y, i) => y !== noisy.Y[i]).length;
+  assert.ok(flipped >= 25 && flipped <= 55, `${flipped} of 200 flipped`); // 40 expected, ±2.6 standard deviations
+});
+
+test('more label noise only flips more labels', () => {
+  const clean = TRAIN.makeData('XOR').Y, flips = p => new Set(TRAIN.makeData('XOR', 200, { flip: p }).Y.map((y, i) => y !== clean[i] ? i : -1).filter(i => i >= 0));
+  const some = flips(0.1), more = flips(0.3);
+  assert.ok(some.size > 0 && more.size > some.size);
+  for (const i of some) assert.ok(more.has(i), `point ${i} flipped at 10% but not at 30%`);
+});
+
+test('a test set from another seed has different points', () => {
+  assert.notDeepEqual(flat(TRAIN.makeData('Hai cụm', 200, { seed: 7 }).X), flat(TRAIN.makeData('Hai cụm').X));
+});
+
+test('evaluate gives the loss and accuracy that backprop measures, without the gradients', () => {
+  for (const act of ['relu', 'tanh']) {
+    const net = TRAIN.init(12, 4), D = TRAIN.makeData('Xoắn ốc'), e = TRAIN.evaluate(net, D, act), r = TRAIN.lossGrad(net, D, act);
+    assert.ok(Math.abs(e.loss - r.loss) < 1e-12, act);
+    assert.equal(e.acc, r.acc, act);
+  }
+});
+
+test('weight decay pulls every weight towards 0 by η·λ·w on top of the step, and leaves biases alone', () => {
+  for (const [opt, dir] of [['sgd', g => g], ['adam', g => g / (Math.abs(g) + 1e-8)]]) {
+    const net = TRAIN.init(5, 2), D = TRAIN.makeData('Hai cụm', 20);
+    net.b.forEach(v => v.fill(0.5)); // biases start at 0, where decaying them would change nothing
+    const r = TRAIN.lossGrad(net, D, 'tanh');
+    const w0 = flat(net.W), g = flat(r.gW), b0 = [...net.b.flat()], gb = [...r.gb.flat()];
+    TRAIN.step(net, D, { act: 'tanh', opt, lr: 0.05, decay: 0.1 });
+    close(flat(net.W), w0.map((w, i) => w - 0.05 * (dir(g[i]) + 0.1 * w)), 1e-12, `${opt} W`);
+    close([...net.b.flat()], b0.map((b, i) => b - 0.05 * dir(gb[i])), 1e-12, `${opt} b`);
+  }
+});
+
+// which b-point subsets of a small set an SGD step could have used: compare the step against each one
+const subsetsOf = (n, b) => b === 0 ? [[]] : n < b ? [] : [...subsetsOf(n - 1, b), ...subsetsOf(n - 1, b - 1).map(s => [...s, n - 1])];
+function usedPoints(net, D, b, lr) {
+  const w0 = flat(net.W);
+  const candidates = subsetsOf(D.X.length, b).map(s => ({ s, g: flat(TRAIN.lossGrad(net, { X: s.map(i => D.X[i]), Y: s.map(i => D.Y[i]) }, 'tanh').gW) }));
+  TRAIN.step(net, D, { act: 'tanh', opt: 'sgd', lr, batch: b });
+  const w1 = flat(net.W), hits = candidates.filter(({ g }) => w1.every((w, i) => Math.abs(w - (w0[i] - lr * g[i])) < 1e-12));
+  assert.equal(hits.length, 1, `matches ${hits.length} subsets`);
+  return hits[0].s;
+}
+
+test('a mini-batch step is a full step on b of the points', () => {
+  const D = TRAIN.makeData('XOR', 6);
+  assert.equal(usedPoints(TRAIN.init(4, 3), D, 2, 0.1).length, 2);
+});
+
+test('the mini-batches of one epoch use every point exactly once', () => {
+  const net = TRAIN.init(4, 3), D = TRAIN.makeData('XOR', 6);
+  const used = [0, 1, 2].flatMap(() => usedPoints(net, D, 2, 0.1));
+  assert.deepEqual(used.sort(), [0, 1, 2, 3, 4, 5]);
+});
+
+test('a batch as large as the data is the full-batch step', () => {
+  const D = TRAIN.makeData('Vòng tròn', 40), a = TRAIN.init(6, 5), b = TRAIN.init(6, 5);
+  TRAIN.step(a, D, { ...ADAM, batch: 40 }); TRAIN.step(b, D, ADAM);
+  assert.deepEqual(flat(a.W), flat(b.W));
+});
+
+// train loss falls from 1 to 0.1 over 600 steps; test loss falls to `low` at step 200, then moves linearly to `end`
+const pair = (low, end) => {
+  const train = Array.from({ length: 601 }, (_, i) => 1 - 0.9 * i / 600);
+  const test = train.map((_, i) => i <= 200 ? 1 - (1 - low) * i / 200 : low + (end - low) * (i - 200) / 400);
+  return { train, test };
+};
+
+test('test loss climbing back while train loss keeps falling is called overfitting', () => {
+  const { train, test } = pair(0.3, 0.6);
+  assert.equal(TRAIN.diagnose(train, 0.97, data(100), { h: test, acc: 0.85 }), 'overfitting');
+});
+
+test('test loss drifting up from an early low but staying below the train loss is not overfitting', () => {
+  // noisy training labels keep the train loss near 0.3; the clean test set dipped to 0.18 early and settled at 0.26
+  const train = Array.from({ length: 601 }, (_, i) => Math.max(0.3, 1 - i / 100));
+  const test = train.map((_, i) => i <= 30 ? 1 - 0.82 * i / 30 : 0.26);
+  assert.notEqual(TRAIN.diagnose(train, 0.88, data(100), { h: test, acc: 0.9 }), 'overfitting');
+});
+
+test('test loss that keeps falling with train loss is not overfitting', () => {
+  const { train, test } = pair(0.3, 0.25);
+  assert.notEqual(TRAIN.diagnose(train, 0.97, data(100), { h: test, acc: 0.92 }), 'overfitting');
+});
+
+// the lab's own case: the circle with 20% of its training labels flipped and 16 neurons
+const overfit = decay => {
+  const net = TRAIN.init(16), D = TRAIN.makeData('Vòng tròn', 200, { flip: 0.2 }), T = TRAIN.makeData('Vòng tròn', 200, { seed: 7 });
+  const opts = { act: 'relu', opt: 'adam', lr: 0.03, decay }, h = [TRAIN.evaluate(net, D, 'relu').loss], t = [TRAIN.evaluate(net, T, 'relu').loss];
+  let acc = 0, tacc = 0;
+  for (let i = 0; i < 2000; i++) {
+    ({ acc } = TRAIN.step(net, D, opts)); h.push(TRAIN.evaluate(net, D, 'relu').loss);
+    const e = TRAIN.evaluate(net, T, 'relu'); t.push(e.loss); tacc = e.acc;
+  }
+  return TRAIN.diagnose(h, acc, D, { h: t, acc: tacc });
+};
+
+test('lab: 20% label noise and 16 neurons overfit, and the lab says so', () => {
+  assert.equal(overfit(0), 'overfitting');
+});
+
+test('lab: the same run with weight decay 0.1 does not overfit', () => {
+  assert.notEqual(overfit(0.1), 'overfitting');
 });

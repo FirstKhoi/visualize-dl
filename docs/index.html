@@ -612,7 +612,16 @@ function setHover(it) {
 const live = { words: [...TOY.PRESETS[0]], causal: false, scale: true, owner: null };
 const conv = { img: TOYCONV.IMAGES['Cạnh dọc'].map(r => [...r]), kernel: 'Sobel dọc', pad: 1, stride: 1, owner: null, pick: null };
 const MAXW = 6;
-const LIVE_M = { qk: r => r.S, scale: r => r.St, mask: r => r.Sm, softmax: r => r.A, sdpa: r => r.A, av: r => r.O };
+// every live key a block can carry (node.live): the matrix or picture painted above it in 3D, the panel section that
+// explains it, and the demo it belongs to. A model file can only use keys listed here.
+const LIVE = {
+  ...Object.fromEntries(Object.entries({ qk: r => r.S, scale: r => r.St, mask: r => r.Sm, softmax: r => r.A, sdpa: r => r.A, av: r => r.O })
+    .map(([k, pick]) => [k, { demo: 'attn', matrix: memo => pick(memo.attn ??= TOY.run(live.words, live)), section: () => liveSection(k) }])),
+  conv: { demo: 'conv', matrix: memo => (memo.conv ??= convRun()).Y, section: () => convSection() },
+  ...Object.fromEntries([1, 2, 3].map(k => [`W${k}`, { demo: 'lab', matrix: () => lab.net.W[k - 1] }])), // the lab's real weights
+  boundary: { demo: 'lab', image: () => labImg } // the lab's decision boundary
+};
+const showsDemo = (L, demo) => L.items.some(it => it.live && LIVE[it.node.live].demo === demo);
 const fmtV = v => v === -Infinity ? '−∞' : Number.isInteger(v) ? String(v) : v.toFixed(2);
 const vmax = M => Math.max(1e-9, ...M.flat().filter(Number.isFinite).map(Math.abs));
 const convRun = () => TOYCONV.run(conv.img, TOYCONV.KERNELS[conv.kernel], conv);
@@ -622,11 +631,11 @@ const cellBg = (v, max) => `background: color-mix(in srgb, var(${v < 0 ? '--char
 function paintLive(L) {
   const memo = {}, tmp = new THREE.Color();
   for (const it of L.items) if (it.live) {
-    const key = it.node.live, { ctx, tex } = it.live, S = ctx.canvas.width;
-    if (key === 'boundary') { ctx.clearRect(0, 0, S, S); ctx.drawImage(labImg, 0, 0, S, S); tex.needsUpdate = true; continue; } // training lab: decision boundary
-    const M = key === 'conv' ? (memo.c ??= convRun()).Y : key[0] === 'W' ? lab.net.W[key[1] - 1] : LIVE_M[key](memo.a ??= TOY.run(live.words, live)), max = vmax(M);
-    const cell = Math.floor((S - 8) / Math.max(M.length, M[0].length)), ox = (S - cell * M[0].length) / 2, oy = (S - cell * M.length) / 2;
+    const kind = LIVE[it.node.live], { ctx, tex } = it.live, S = ctx.canvas.width;
     ctx.clearRect(0, 0, S, S);
+    if (kind.image) { ctx.drawImage(kind.image(), 0, 0, S, S); tex.needsUpdate = true; continue; }
+    const M = kind.matrix(memo), max = vmax(M);
+    const cell = Math.floor((S - 8) / Math.max(M.length, M[0].length)), ox = (S - cell * M[0].length) / 2, oy = (S - cell * M.length) / 2;
     ctx.font = `600 ${Math.round(cell * 0.3)}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     M.forEach((row, i) => row.forEach((v, j) => {
@@ -816,7 +825,11 @@ panel.addEventListener('input', e => {
 
 // ---------- training lab: TRAIN (live.js) runs at a fixed rate of steps while ▶ is on ----------
 const LRS = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3];
-const lab = { data: 'Vòng tròn', act: 'relu', opt: 'adam', lr: 3, H: 8, running: false, hist: [], acc: 0, net: null, D: null, shown: 0, pace: null };
+const NOISES = [0, 0.05, 0.1, 0.2, 0.3], DECAYS = [0, 0.001, 0.01, 0.03, 0.1, 0.3]; // share of training labels flipped; weight decay λ
+const LAB_SHOW = { lr: i => LRS[i], H: v => v, noise: i => `${Math.round(NOISES[i] * 100)}%`, decay: i => DECAYS[i] }; // each slider's readout
+// D is the training set (with its label noise), T the test set: other points from the same shapes, clean labels, never trained on
+const lab = { data: 'Vòng tròn', act: 'relu', opt: 'adam', lr: 3, H: 8, noise: 0, decay: 0, batch: 'all', view: 'train',
+  running: false, hist: [], acc: 0, test: [], testAcc: 0, net: null, D: null, T: null, shown: 0, pace: null };
 const labImg = document.createElement('canvas');
 labImg.width = labImg.height = 280;
 const MAX_STEPS = 5000, STEPS_PER_S = 240, STEP_MS = 8; // a run's speed, and the time per frame it may use for steps
@@ -824,20 +837,23 @@ const MAX_STEPS = 5000, STEPS_PER_S = 240, STEP_MS = 8; // a run's speed, and th
 const labDone = () => { const last = lab.hist.at(-1); return !Number.isFinite(last) || last < 1e-3 || lab.hist.length > MAX_STEPS; };
 
 function labReset() {
-  lab.net = TRAIN.init(lab.H); lab.D = TRAIN.makeData(lab.data); lab.running = false;
-  const r = TRAIN.lossGrad(lab.net, lab.D, lab.act);
-  lab.hist = [r.loss]; lab.acc = r.acc;
+  lab.net = TRAIN.init(lab.H); lab.running = false;
+  lab.D = TRAIN.makeData(lab.data, 200, { flip: NOISES[lab.noise] });
+  lab.T = TRAIN.makeData(lab.data, 200, { seed: 7 });
+  const r = TRAIN.evaluate(lab.net, lab.D, lab.act), t = TRAIN.evaluate(lab.net, lab.T, lab.act);
+  lab.hist = [r.loss]; lab.acc = r.acc; lab.test = [t.loss]; lab.testAcc = t.acc;
 }
 // k steps, or fewer if they take longer than ms (a slow device trains slower instead of dropping frames)
 function labStep(k, ms = Infinity) {
   const t0 = performance.now();
   for (let i = 0; i < k && !(i && performance.now() - t0 > ms); i++) {
-    const r = TRAIN.step(lab.net, lab.D, { act: lab.act, opt: lab.opt, lr: LRS[lab.lr] });
-    lab.hist.push(r.loss); lab.acc = r.acc;
+    const r = TRAIN.step(lab.net, lab.D, { act: lab.act, opt: lab.opt, lr: LRS[lab.lr], decay: DECAYS[lab.decay], batch: lab.batch === 'all' ? 0 : +lab.batch });
+    const t = TRAIN.evaluate(lab.net, lab.T, lab.act);
+    lab.hist.push(r.loss); lab.acc = r.acc; lab.test.push(t.loss); lab.testAcc = t.acc;
     if (labDone()) { lab.running = false; break; }
   }
 }
-// decision boundary: background = p(class 1) on a 56×56 grid; points ringed dark when the net gets them wrong
+// decision boundary: background = p(class 1) on a 56×56 grid; the training or the test points on top, ringed dark when the net gets them wrong
 function labDraw() {
   const g = labImg.getContext('2d'), S = labImg.width, G = 56, c = S / G, span = 1.3, tmp = new THREE.Color(), prob = TRAIN.prober(lab.net, lab.act);
   const p = (x, y) => { const v = prob(x, y); return Number.isFinite(v) ? v : 0.5; };
@@ -846,8 +862,9 @@ function labDraw() {
     g.fillStyle = tmp.lerpColors(theme.surface, v > 0.5 ? theme.chartA : theme.chartB, Math.min(1, Math.abs(v - 0.5) * 2) * 0.55).getStyle();
     g.fillRect(j * c, i * c, c + 0.5, c + 0.5);
   }
-  lab.D.X.forEach(([x, y], k) => {
-    const lbl = lab.D.Y[k], ok = (p(x, y) > 0.5 ? 1 : 0) === lbl;
+  const P = lab.view === 'test' ? lab.T : lab.D;
+  P.X.forEach(([x, y], k) => {
+    const lbl = P.Y[k], ok = (p(x, y) > 0.5 ? 1 : 0) === lbl;
     g.beginPath(); g.arc((x + span) / (2 * span) * S, (span - y) / (2 * span) * S, 4, 0, 2 * Math.PI);
     g.fillStyle = (lbl ? theme.chartA : theme.chartB).getStyle(); g.fill();
     g.lineWidth = ok ? 1.5 : 2.5; g.strokeStyle = (ok ? theme.surface : theme.fg).getStyle(); g.stroke();
@@ -855,35 +872,44 @@ function labDraw() {
   document.getElementById('lab-canvas')?.getContext('2d').drawImage(labImg, 0, 0);
 }
 function labAdvice() {
-  const h = lab.hist, n = h.length - 1, L0 = h[0], last = h.at(-1), pct = Math.round(lab.acc * 100);
-  switch (TRAIN.diagnose(h, lab.acc, lab.D)) {
+  const h = lab.hist, n = h.length - 1, L0 = h[0], last = h.at(-1), pct = Math.round(lab.acc * 100), tpct = Math.round(lab.testAcc * 100);
+  switch (TRAIN.diagnose(h, lab.acc, lab.D, { h: lab.test, acc: lab.testAcc })) {
     case 'diverged': return 'Loss bùng nổ: learning rate quá lớn, mỗi bước nhảy quá xa và văng khỏi thung lũng. Giảm η rồi bấm Khởi tạo lại.';
     case 'idle': return 'Bấm ▶ Chạy để mạng bắt đầu học, hoặc "Bước +1" để đi từng bước một.';
     case 'dead': return `Loss kẹt ở ${fmtG(last)} và chỉ đúng ${pct}%: mạng đoán cùng một xác suất cho mọi điểm (khi hai lớp bằng nhau, loss đó là ln 2 = 0.693). Thường là do learning rate quá lớn làm mọi ReLU "chết" (luôn ra 0). Giảm η, đổi sang tanh, rồi khởi tạo lại.`;
-    case 'solved': return `Đã tách đúng ${pct}% sau ${n} bước. Thử bộ dữ liệu khó hơn, giảm số neuron, hoặc so với bộ tối ưu khác.`;
+    case 'overfitting': {
+      const k = lab.test.indexOf(Math.min(...lab.test));
+      return `Overfitting: mạng đang học thuộc lòng tập train, kể cả những nhãn nhiễu. Loss train vẫn giảm (${fmtG(last)}) nhưng loss test đã tăng từ ${fmtG(lab.test[k])} ở bước ${k} lên ${fmtG(lab.test.at(-1))}, và tập test chỉ đúng ${tpct}%. Thử tăng weight decay, giảm số neuron, hoặc dừng sớm quanh bước ${k}.`;
+    }
+    case 'solved': return `Đã tách đúng ${pct}% tập train sau ${n} bước (tập test: ${tpct}%). Thử bộ dữ liệu khó hơn, thêm nhiễu nhãn, hoặc so với bộ tối ưu khác.`;
     case 'oscillating': return 'Loss dao động lên xuống: learning rate hơi lớn, bước đi vượt qua đáy rồi quay lại. Giảm η một nấc.';
     case 'slow': return 'Loss gần như không giảm: learning rate quá nhỏ, hoặc mạng quá nhỏ cho bộ dữ liệu này. Tăng η hoặc số neuron.';
     case 'plateau': return `Loss đã chững lại ở ${fmtG(last)} (đúng ${pct}%): có thể mạng không đủ neuron để vẽ ranh giới này. Tăng số neuron rồi khởi tạo lại.`;
-    default: return `Đang học: loss giảm từ ${fmtG(L0)} xuống ${fmtG(last)} sau ${n} bước (đúng ${pct}%).`;
+    default: return `Đang học: loss train giảm từ ${fmtG(L0)} xuống ${fmtG(last)} sau ${n} bước (đúng ${pct}% tập train, ${tpct}% tập test).`;
   }
 }
 function labOut() {
-  const h = lab.hist, n = h.length - 1, every = Math.ceil(h.length / 300);
+  const h = lab.hist, t = lab.test, n = h.length - 1, every = Math.ceil(h.length / 300), pct = v => `${Math.round(v * 100)}%`;
   const xs = h.map((_, i) => i).filter(i => i === 0 || (n - i) % every === 0); // every k-th step counted back from the latest, so the chart ends where the stats are
-  return `<p class="lab-stats"><span>Bước <b>${n}</b></span><span>Loss <b>${fmtG(h.at(-1))}</b></span><span>Đúng <b>${Math.round(lab.acc * 100)}%</b></span></p>`
-    + (xs.length > 1 ? lineChart({ what: 'Loss', series: [xs.map(i => h[i])], names: ['Loss'], unit: 'bước', xLabel: 'số bước huấn luyện →', xs }) : '')
+  return `<p class="lab-stats"><span>Bước <b>${n}</b></span><span>Loss train <b>${fmtG(h.at(-1))}</b> · test <b>${fmtG(t.at(-1))}</b></span><span>Đúng train <b>${pct(lab.acc)}</b> · test <b>${pct(lab.testAcc)}</b></span></p>`
+    + (xs.length > 1 ? lineChart({ what: 'Loss', series: [xs.map(i => h[i]), xs.map(i => t[i])], names: ['Train', 'Test'], unit: 'bước', xLabel: 'số bước huấn luyện →', xs }) : '')
     + `<p class="reading"><span>${labAdvice()}</span></p>`;
 }
 const labPick = (key, opts) => opts.map(([v, label]) => `<button type="button" data-labset="${key}" data-val="${v}" aria-pressed="${lab[key] === v}">${label}</button>`).join('');
+const labSlide = (key, label, max, min = 0) => `<label class="sl" for="lab-${key}"><span>${label}<output id="o-lab-${key.toLowerCase()}">${LAB_SHOW[key](lab[key])}</output></span><input type="range" id="lab-${key}" data-labkey="${key}" min="${min}" max="${max}" step="1" value="${lab[key]}"></label>`;
 const labSection = () => `<section class="lab"><h3>Phòng thí nghiệm huấn luyện</h3>
-  <p class="kids-hint">Mạng 2 → H → H → 2 train ngay trong trang trên 200 điểm, cả batch mỗi bước, backprop viết tay (đã đối chiếu với gradient tính bằng sai phân). Nền màu là xác suất mạng dự đoán: hồng là lớp 1, xanh là lớp 0; điểm có viền đậm là điểm đang bị đoán sai. Heatmap trên các khối 3D là trọng số thật, đổi theo từng bước.</p>
+  <p class="kids-hint">Mạng 2 → H → H → 2 train ngay trong trang trên 200 điểm (tập train), backprop viết tay (đã đối chiếu với gradient tính bằng sai phân). 200 điểm khác cùng hình dạng, nhãn không nhiễu, là tập test: mạng không học từ chúng, chỉ dùng để đo xem nó có tổng quát hoá được không. Nền màu là xác suất mạng dự đoán: hồng là lớp 1, xanh là lớp 0; điểm có viền đậm là điểm đang bị đoán sai. Heatmap trên các khối 3D là trọng số thật, đổi theo từng bước.</p>
   <div class="live-ctl">
     <div class="vocab"><span>Dữ liệu:</span>${labPick('data', TRAIN.DATASETS.map(d => [d, d]))}</div>
     <div class="vocab"><span>Kích hoạt:</span>${labPick('act', [['relu', 'ReLU'], ['tanh', 'tanh']])}</div>
     <div class="vocab"><span>Bộ tối ưu:</span>${labPick('opt', [['sgd', 'SGD'], ['momentum', 'Momentum'], ['adam', 'Adam']])}</div>
-    <label class="sl" for="lab-lr"><span>Learning rate η<output id="o-lab-lr">${LRS[lab.lr]}</output></span><input type="range" id="lab-lr" data-labkey="lr" min="0" max="${LRS.length - 1}" step="1" value="${lab.lr}"></label>
-    <label class="sl" for="lab-h"><span>Số neuron mỗi lớp ẩn<output id="o-lab-h">${lab.H}</output></span><input type="range" id="lab-h" data-labkey="H" min="2" max="16" step="1" value="${lab.H}"></label>
+    <div class="vocab"><span>Batch:</span>${labPick('batch', [['all', 'Cả 200 điểm'], ['32', '32'], ['8', '8']])}</div>
+    ${labSlide('lr', 'Learning rate η', LRS.length - 1)}
+    ${labSlide('H', 'Số neuron mỗi lớp ẩn', 16, 2)}
+    ${labSlide('noise', 'Nhiễu nhãn của tập train', NOISES.length - 1)}
+    ${labSlide('decay', 'Weight decay λ', DECAYS.length - 1)}
     <div class="lab-btns"><button type="button" class="labbtn primary" data-lab="run">${lab.running ? '❚❚ Dừng' : '▶ Chạy'}</button><button type="button" class="labbtn" data-lab="step">Bước +1</button><button type="button" class="labbtn" data-lab="reset">Khởi tạo lại</button></div>
+    <div class="vocab"><span>Vẽ điểm của:</span>${labPick('view', [['train', 'Tập train'], ['test', 'Tập test']])}</div>
   </div>
   <canvas id="lab-canvas" width="280" height="280" role="img" aria-label="Ranh giới quyết định của mạng và 200 điểm dữ liệu"></canvas>
   <div class="lab-out" aria-live="${lab.running ? 'off' : 'polite'}">${labOut()}</div></section>`;
@@ -898,7 +924,7 @@ function labUI() {
   }
   const run = panel.querySelector('[data-lab="run"]'), label = lab.running ? '❚❚ Dừng' : '▶ Chạy';
   if (run && run.textContent !== label) run.textContent = label;
-  if (level.items.some(it => it.live && (it.node.live[0] === 'W' || it.node.live === 'boundary'))) paintLive(level);
+  if (showsDemo(level, 'lab')) paintLive(level);
 }
 function labAction(a) {
   if (a === 'run') {
@@ -912,15 +938,16 @@ function labAction(a) {
 }
 function labSet(key, val) {
   lab[key] = val;
-  if (key === 'opt') TRAIN.resetOpt(lab.net); else labReset(); // a new optimizer keeps the weights; new data or activation start over
+  if (key === 'opt') TRAIN.resetOpt(lab.net); // a new optimizer keeps the weights
+  else if (key === 'data' || key === 'act') labReset(); // new data or activation start over; batch size and the drawn set don't
   panel.querySelectorAll(`[data-labset="${key}"]`).forEach(b => b.setAttribute('aria-pressed', b.dataset.val === val));
   labUI();
 }
 function labSlider(t) {
   const key = t.dataset.labkey;
   lab[key] = +t.value;
-  panel.querySelector(`#o-lab-${key.toLowerCase()}`).textContent = key === 'lr' ? LRS[lab.lr] : lab.H;
-  if (key === 'H') labReset(); // a different width is a different network
+  panel.querySelector(`#o-lab-${key.toLowerCase()}`).textContent = LAB_SHOW[key](lab[key]);
+  if (key === 'H' || key === 'noise') labReset(); // a different width is a different network, new noise new labels
   labUI();
 }
 
@@ -956,7 +983,7 @@ function renderPanel() {
     + `<h2>${nd.name}</h2>` + (nd.shape ? `<p class="shape">${nd.shape}</p>` : '') + `<p class="what">${i.what}</p>`
     + (nd.exp === 'train' ? labSection() : '') // the lab is the point of these blocks: controls before the formulas
     + sec('Công thức', i.formula && i.formula.map(f => `<div class="math">\\[${f}\\]</div>`).join(''))
-    + (nd.live === 'conv' ? convSection() : nd.live && nd.live !== 'boundary' && nd.live[0] !== 'W' ? liveSection(nd.live) : '')
+    + (LIVE[nd.live]?.section?.() ?? '')
     + (nd.exp && nd.exp !== 'train' ? expSection(nd.exp) : '')
     + sec('Vì sao như vậy', i.why && `<p>${i.why}</p>`)
     + sec('Ví dụ số', i.example && `<p>${i.example}</p>`)
