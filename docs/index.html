@@ -508,6 +508,7 @@ let path = [], level = null, sel = null, hover = null, busy = false;
 // opens a model at any depth: idx = child indices from the root; a leaf at the end of idx gets selected
 async function enter(model, idx = []) {
   busy = true;
+  lab.running = false; // a training run belongs to the lab on screen
   const old = level;
   path = [MODELS[model]]; sel = hover = null;
   for (const i of idx) { const k = path.at(-1).children?.[i]; if (!k) break; path.push(k); }
@@ -847,15 +848,16 @@ function labDraw() {
 }
 function labAdvice() {
   const h = lab.hist, n = h.length - 1, L0 = h[0], last = h.at(-1), pct = Math.round(lab.acc * 100);
-  if (!Number.isFinite(last) || last > 10) return 'Loss bùng nổ: learning rate quá lớn, mỗi bước nhảy quá xa và văng khỏi thung lũng. Giảm η rồi bấm Khởi tạo lại.';
-  if (n === 0) return 'Bấm ▶ Chạy để mạng bắt đầu học, hoặc "Bước +1" để đi từng bước một.';
-  if (n >= 30 && Math.abs(last - Math.LN2) < 0.01 && lab.acc <= 0.55) return 'Loss kẹt ở ln 2 = 0.693 và chỉ đúng 50%: mạng đoán 50/50 cho mọi điểm. Thường là do learning rate quá lớn làm mọi ReLU "chết" (luôn ra 0). Giảm η, đổi sang tanh, rồi khởi tạo lại.';
-  if (lab.acc >= 0.99) return `Đã tách đúng ${pct}% sau ${n} bước. Thử bộ dữ liệu khó hơn, giảm số neuron, hoặc so với bộ tối ưu khác.`;
-  const recent = h.slice(-40), ups = recent.filter((v, i) => i && v > recent[i - 1]).length;
-  if (n >= 40 && ups > 12) return 'Loss dao động lên xuống: learning rate hơi lớn, bước đi vượt qua đáy rồi quay lại. Giảm η một nấc.';
-  if (n >= 300 && last > 0.9 * L0) return 'Loss gần như không giảm: learning rate quá nhỏ, hoặc mạng quá nhỏ cho bộ dữ liệu này. Tăng η hoặc số neuron.';
-  if (n >= 400 && lab.acc < 0.97 && h.at(-100) - last < 0.01) return `Loss đã chững lại ở ${fmtG(last)} (đúng ${pct}%): có thể mạng không đủ neuron để vẽ ranh giới này. Tăng số neuron rồi khởi tạo lại.`;
-  return `Đang học: loss giảm từ ${fmtG(L0)} xuống ${fmtG(last)} sau ${n} bước (đúng ${pct}%).`;
+  switch (TRAIN.diagnose(h, lab.acc, lab.D)) {
+    case 'diverged': return 'Loss bùng nổ: learning rate quá lớn, mỗi bước nhảy quá xa và văng khỏi thung lũng. Giảm η rồi bấm Khởi tạo lại.';
+    case 'idle': return 'Bấm ▶ Chạy để mạng bắt đầu học, hoặc "Bước +1" để đi từng bước một.';
+    case 'dead': return `Loss kẹt ở ${fmtG(last)} và chỉ đúng ${pct}%: mạng đoán cùng một xác suất cho mọi điểm (khi hai lớp bằng nhau, loss đó là ln 2 = 0.693). Thường là do learning rate quá lớn làm mọi ReLU "chết" (luôn ra 0). Giảm η, đổi sang tanh, rồi khởi tạo lại.`;
+    case 'solved': return `Đã tách đúng ${pct}% sau ${n} bước. Thử bộ dữ liệu khó hơn, giảm số neuron, hoặc so với bộ tối ưu khác.`;
+    case 'oscillating': return 'Loss dao động lên xuống: learning rate hơi lớn, bước đi vượt qua đáy rồi quay lại. Giảm η một nấc.';
+    case 'slow': return 'Loss gần như không giảm: learning rate quá nhỏ, hoặc mạng quá nhỏ cho bộ dữ liệu này. Tăng η hoặc số neuron.';
+    case 'plateau': return `Loss đã chững lại ở ${fmtG(last)} (đúng ${pct}%): có thể mạng không đủ neuron để vẽ ranh giới này. Tăng số neuron rồi khởi tạo lại.`;
+    default: return `Đang học: loss giảm từ ${fmtG(L0)} xuống ${fmtG(last)} sau ${n} bước (đúng ${pct}%).`;
+  }
 }
 function labOut() {
   const h = lab.hist, stride = Math.max(1, Math.ceil(h.length / 300)), thin = h.filter((_, i) => i % stride === 0);
@@ -1128,6 +1130,7 @@ renderer.domElement.addEventListener('pointermove', e => { if (!e.buttons && !bu
 // ---------- boot ----------
 function onTheme() {
   readTheme();
+  labDraw(); // the boundary image is painted in theme colours; buildLevel copies it onto the 3D block
   if (!level || busy) return;
   const old = level, s = sel?.node;
   level = buildLevel(path.at(-1));
@@ -1171,6 +1174,7 @@ renderer.setAnimationLoop(now => {
 
 readTheme();
 labReset();
+labDraw(); // before the first level is built, so the boundary block has a picture to copy
 enter(...(parseLoc(location.hash.slice(1)) || ['transformer'])); // a link like …#llm.2.1 opens that block
 </script>
 

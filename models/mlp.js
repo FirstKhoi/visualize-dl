@@ -1,6 +1,10 @@
 // Training lab: the smallest network with every piece of deep learning, trained live in the page (TRAIN in live.js).
 // live: 'W1' | 'W2' | 'W3' paint the real weight matrices over the blocks, 'boundary' the decision boundary; exp: 'train' = the lab panel.
 (() => {
+const pNet = H => 2 * H + H + H * H + H + 2 * H + 2; // W₁ b₁, W₂ b₂, W₃ b₃
+// self-check: the network TRAIN really builds has that many numbers
+console.assert([2, 8, 16].every(H => { const net = TRAIN.init(H); return net.W.flat(2).length + net.b.flat().length === pNet(H); }), 'MLP parameter count mismatch');
+
 const linear = (name, tag, k, shape, what, why, extra = {}) => n(name, 'linear', shape, {
   what,
   formula: [R`z_${k} = a_${k - 1} W_${k} + b_${k}`, R`\frac{\partial L}{\partial W_${k}} = a_${k - 1}^\top\, \delta_${k}, \qquad \frac{\partial L}{\partial b_${k}} = \textstyle\sum_i \delta_${k}, \qquad \delta_{\text{trước}} = \delta_${k}\, W_${k}^\top`],
@@ -27,8 +31,8 @@ MODELS.mlp = n('MLP: phòng thí nghiệm huấn luyện', 'block', '2 toạ đ�
     R`\text{Adam:}\quad m \leftarrow \beta_1 m + (1 - \beta_1) g, \quad v \leftarrow \beta_2 v + (1 - \beta_2) g^2, \quad \theta \leftarrow \theta - \eta\, \frac{\hat m}{\sqrt{\hat v} + \epsilon}`
   ],
   why: 'Learning rate η là núm quan trọng nhất: quá nhỏ thì học rất chậm, quá lớn thì mỗi bước nhảy qua cả thung lũng của loss. Adam tự co giãn bước đi cho từng tham số theo độ lớn gradient gần đây, nên ít nhạy với η hơn SGD. Lớp ẩn và phi tuyến là thứ cho phép mạng vẽ ranh giới cong; số neuron quyết định ranh giới phức tạp được đến đâu.',
-  example: 'Đo trên chính trang này (bộ "Vòng tròn", 8 neuron, ReLU): Adam với η = 0.03 đưa loss xuống dưới 0.1 sau 41 bước; SGD cùng η sau 600 bước vẫn còn 0.145; η = 3 làm ReLU chết hết, loss kẹt ở 0.693 và độ chính xác 50%. Bộ "Xoắn ốc": 8 neuron kẹt quanh 94%, 16 neuron đạt 100% sau khoảng 180 bước.',
-  params: R`\(2H + H + H^2 + H + 2H + 2\): với \(H = 8\) là 114 tham số, \(H = 16\) là 338.`,
+  example: 'Đo trên chính trang này (bộ "Vòng tròn", 8 neuron, ReLU): Adam với η = 0.03 đưa loss xuống dưới 0.1 sau 40 bước; SGD cùng η sau 600 bước vẫn còn 0.145; η = 3 làm ReLU chết hết, loss kẹt ở 0.693 và độ chính xác 50%. Bộ "Xoắn ốc": 8 neuron kẹt quanh 94%, 16 neuron đạt 100% sau khoảng 180 bước.',
+  params: R`\(2H + H + H^2 + H + 2H + 2 = H^2 + 6H + 2\): với \(H = 8\) là ${pNet(8)} tham số, \(H = 16\) là ${pNet(16)}.`,
   code: `model = nn.Sequential(nn.Linear(2, 8), nn.ReLU(), nn.Linear(8, 8), nn.ReLU(), nn.Linear(8, 2))
 opt = torch.optim.Adam(model.parameters(), lr=0.03)
 for step in range(1000):
