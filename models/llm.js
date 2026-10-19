@@ -97,13 +97,7 @@ const swiglu = n('SwiGLU FFN', 'linear', `n×${C.d} → n×${C.d}`, {
       params: R`\(${C.d} \times ${C.dff} = ${fmt(C.d * C.dff)}\).`,
       code: `g = self.gate_proj(x)   # nn.Linear(4096, 14336, bias=False)`
     }, { tag: 'W_gate', size: [1.7, 1.7, 1.4] }),
-    n('SiLU', 'act', `n×${C.dff}`, {
-      what: 'Nhân x với sigmoid của chính nó. Còn gọi là Swish.',
-      formula: [R`\mathrm{SiLU}(x) = x\,\sigma(x) = \frac{x}{1 + e^{-x}}`],
-      why: 'Mượt, gần ReLU khi |x| lớn, nhưng cho qua một chút giá trị âm và có đạo hàm khác 0 quanh 0, nên tín hiệu học không bị cắt cụt.',
-      example: R`\(\mathrm{SiLU}([-1.5,\ 0.3,\ 2]) = [-0.274,\ 0.172,\ 1.762]\).`,
-      code: `F.silu(g)`
-    }, { size: SLAB }),
+    silu(`n×${C.dff}`, SLAB),
     n('Nhân cổng ⊙', 'act', `n×${C.dff}`, {
       what: 'Nhân từng phần tử: output của cổng nhân với nhánh giá trị.',
       formula: [R`h = \mathrm{SiLU}(g) \odot u`],

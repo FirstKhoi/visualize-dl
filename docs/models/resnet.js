@@ -1,13 +1,5 @@
 // ResNet-50 (He et al., 2015), torchvision resnet50 (v1.5: stride on the 3×3 conv).
 (() => {
-const bn = (C, H) => n('BatchNorm', 'norm', `${C}×${H}×${H}`, {
-  what: R`Chuẩn hoá từng kênh theo trung bình và phương sai tính trên cả batch và mọi vị trí (\(B \times H \times W\) giá trị), rồi co giãn và dịch bằng \(\gamma, \beta\) học được.`,
-  formula: [R`\mu_c = \frac{1}{BHW} \sum_{b,i,j} x_{b,c,i,j}, \qquad \sigma_c^2 = \frac{1}{BHW} \sum_{b,i,j} (x_{b,c,i,j} - \mu_c)^2`, R`y = \gamma_c\, \frac{x - \mu_c}{\sqrt{\sigma_c^2 + \epsilon}} + \beta_c`],
-  why: R`Giữ phân bố activation ổn định giữa các lớp, nên train được với learning rate lớn và ít nhạy với khởi tạo. Khi train dùng thống kê của batch hiện tại; khi suy luận dùng trung bình trượt đã tích luỹ, nên phải gọi model.eval(). Lúc triển khai, BN gộp được hẳn vào conv phía trước: \(W' = \gamma W / \sigma\), \(b' = \beta - \gamma \mu / \sigma\), không tốn thêm phép tính nào.`,
-  params: R`\(\gamma, \beta\): \(2 \times ${C} = ${fmt(2 * C)}\) tham số học, thêm \(${fmt(2 * C)}\) số thống kê trượt (không học).`,
-  code: `nn.BatchNorm2d(${C})`
-}, { tag: 'BN', size: [0.14, sp(H), sp(H)], ref: [ref('bn')] });
-
 const conv1x1 = (Cin, Cout, H, reduce) => n(reduce ? 'Conv 1×1 (nén kênh)' : 'Conv 1×1 (mở rộng kênh)', 'conv', `${Cin}×${H}×${H} → ${Cout}×${H}×${H}`, {
   what: R`Conv 1×1 chính là một lớp Linear áp dụng riêng ở từng điểm ảnh: trộn \(${Cin}\) kênh thành \(${Cout}\) kênh, không nhìn sang điểm lân cận.` + (reduce ? ' Ở đây nó nén kênh để conv 3×3 phía sau rẻ hơn.' : ' Ở đây nó mở rộng lại số kênh để cộng được với đường tắt.'),
   formula: [R`y_{o,i,j} = \sum_{c=1}^{${Cin}} W_{o,c}\, x_{c,i,j}, \qquad W \in \mathbb{R}^{${Cout} \times ${Cin}}`],
@@ -125,19 +117,8 @@ probs = model(x).softmax(-1)   # (B, 1000)`
     }, { tag: 'MaxPool', size: vol(64, 56) })
   ] }),
   ...STAGES,
-  n('Global Average Pooling', 'pool', '2048×7×7 → 2048', {
-    what: 'Lấy trung bình mỗi kênh trên toàn bộ 7×7 vị trí, ra một vector 2048 chiều mô tả cả ảnh.',
-    formula: [R`z_c = \frac{1}{7 \cdot 7} \sum_{i=1}^{7} \sum_{j=1}^{7} x_{c,i,j}`],
-    why: 'Không có tham số và nhận được ảnh vào kích thước bất kỳ. VGG-16 dùng các lớp FC ở vị trí này, tốn khoảng 124M tham số, gần gấp 5 lần toàn bộ ResNet-50.',
-    code: `z = torch.flatten(nn.AdaptiveAvgPool2d(1)(x), 1)   # (B, 2048)`
-  }, { tag: 'Avg Pool', size: [ch(2048), 0.22, 0.22], ref: [ref('nin', 'global average pooling'), ref('vgg', 'để so sánh')] }),
-  n('FC 1000 + Softmax', 'linear', '2048 → 1000', {
-    what: 'Một lớp Linear cho ra 1000 điểm số, mỗi lớp của ImageNet một điểm, rồi softmax thành xác suất.',
-    formula: [R`\text{logits} = W z + b, \qquad W \in \mathbb{R}^{1000 \times 2048}`, R`p_k = \frac{e^{\text{logit}_k}}{\sum_{j=1}^{1000} e^{\text{logit}_j}}, \qquad \mathcal{L} = -\log p_{y}`],
-    why: 'Trong PyTorch, softmax nằm sẵn trong hàm loss (cross_entropy nhận logit), nên model chỉ trả về logit. Muốn dùng ResNet cho bài toán khác, thường chỉ cần thay lớp này rồi fine-tune.',
-    params: R`\(2048 \times 1000 + 1000 = 2\,049\,000\).`,
-    code: `model.fc = nn.Linear(2048, num_classes)   # thay đầu ra khi fine-tune
-loss = F.cross_entropy(model(x), y)`
-  }, { tag: 'FC → 1000', size: [ch(1000), 0.22, 0.22] })
+  gapNode(2048, 7, 'Không có tham số và nhận được ảnh vào kích thước bất kỳ. VGG-16 dùng các lớp FC ở vị trí này, tốn khoảng 124M tham số, gần gấp 5 lần toàn bộ ResNet-50.',
+    { ref: [ref('nin', 'global average pooling'), ref('vgg', 'để so sánh')] }),
+  fcOut(2048, 'fc')
 ] });
 })();
