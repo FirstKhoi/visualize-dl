@@ -1,6 +1,6 @@
 # visualize-dl: Giải phẫu mạng nơ-ron
 
-Trang web 3D (three.js) để khám phá 7 mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, ResNet-50, LSTM, U-Net và một lab train MLP ngay trong trang. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
+Trang web 3D (three.js) để khám phá các mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net và một lab train MLP ngay trong trang. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
 
 Demo: https://firstkhoi.github.io/visualize-dl/ (GitHub Pages phục vụ `docs/` trên `main`). Chủ repo là sinh viên đang xây portfolio cho hồ sơ thạc sĩ/tiến sĩ MIT. Phần train mô hình bằng PyTorch nên để chủ repo tự viết; Claude lo phần tích hợp vào trang.
 
@@ -25,7 +25,7 @@ Mở `index.html` trực tiếp bằng trình duyệt (`file://`) là chạy đ�
 | `models/*.js` | Mỗi file một kiến trúc, dựng cây khối bằng `n(name, cat, shape, info, more)` |
 | `docs/` | Bản cho GitHub Pages do `build-pages.sh` sinh ra. Không sửa tay |
 | `tests/*.test.mjs` | Unit test. `tests/load.mjs` chạy các `<script src>` của `index.html` trong Node, biến `console.assert` thành lỗi thật |
-| `tests/e2e/` | Test bằng Playwright. `browser.mjs` lấy three.js từ `node_modules` (phiên bản phải khớp import map), giả lập MathJax và font, và chặn mọi request ra mạng |
+| `tests/e2e/` | Test bằng Playwright. `browser.mjs` lấy three.js từ `node_modules` (phiên bản phải khớp import map) và chặn mọi request ra mạng. MathJax mặc định được giả lập; test về bố cục mở trang với `app.open(hash, { mathjax: true })` để có công thức thật. Font luôn được giả lập |
 
 Script là classic script, không dùng ES module, để trang vẫn mở được qua `file://`. Các `const` ở cấp cao nhất của `blocks.js`/`live.js` là biến toàn cục mà `index.html` đọc trực tiếp.
 
@@ -60,6 +60,10 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - **Chromium headless trong môi trường cloud chỉ vẽ khoảng 5 khung hình/giây** (WebGL bằng phần mềm), nên lab chỉ chạy khoảng 25 bước/giây. Test e2e cần train lâu phải đặt timeout rộng. Trên máy thật, lab chạy 150–240 bước/giây.
 - **Test e2e với phần tử bị vẽ lại liên tục:** Playwright không `hover` được vì phần tử không bao giờ "đứng yên". Hãy cuộn tới khi chưa chạy, rồi dùng `page.mouse.move` tới toạ độ cố định.
 - **Tránh trùng class CSS** với các demo khác (ví dụ `.tok`, `.live label` đã có sẵn).
+- **Bố cục panel:**
+  - Nút gắn với một mục (như "Sao chép") đặt trên hàng tiêu đề qua tham số `tool` của `sec(h, body, tool)`, không định vị tuyệt đối đè lên nội dung.
+  - Công thức nằm trong câu không xuống dòng được, nên `.panel p` tự cuộn ngang. Thứ gì rộng (bảng, lưới) thì bọc trong một khung có `overflow-x: auto`.
+  - Mục tiêu là panel không bao giờ cuộn ngang, kể cả trên điện thoại dọc (390px) và xoay ngang (844×390, panel chỉ khoảng 300px). Test: `tests/e2e/panel.test.mjs`.
 
 ## Git
 
@@ -67,12 +71,12 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - Nếu PR của branch đã merge: chạy `git fetch origin main && git checkout -B claude/charming-brown-ogcaqu origin/main`, rồi `git push --force-with-lease`.
 - Cuối commit message thêm dòng `Co-Authored-By` như các commit trước.
 
-## Trạng thái (cập nhật lần cuối 2026-10-19; sửa mục này khi tiến độ thay đổi)
+## Trạng thái (cập nhật lần cuối 2026-10-20; sửa mục này khi tiến độ thay đổi)
 
 **Đã xong**
 - PR #1: sửa 6 bug của lab; thêm test Node, CI, README song ngữ, LICENSE MIT.
 - PR #2: test e2e; sửa các lỗi nhỏ (▶ sau khi giải xong, điểm cuối đồ thị, `aria-live`, tooltip, tốc độ).
-- PR #3 (đang mở lúc ghi): bảng `LIVE` và `rng` dùng chung; overfitting trong lab (tập test, nhiễu nhãn, weight decay, mini-batch); demo sampling của LLaMA (nhiệt độ T, top-p, bốc thăm).
+- PR #3 (đang mở lúc ghi): bảng `LIVE` và `rng` dùng chung; overfitting trong lab (tập test, nhiễu nhãn, weight decay, mini-batch); demo sampling của LLaMA (nhiệt độ T, top-p, bốc thăm); đã merge `main` (DenseNet-121, EfficientNet-B0); nút "Sao chép" không còn che code; panel không còn cuộn ngang trên điện thoại.
 
 **Bước tiếp theo, theo thứ tự**
 1. **Giai đoạn 2: CNN thật trên MNIST.**

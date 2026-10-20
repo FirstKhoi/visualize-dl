@@ -98,6 +98,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .panel section { margin-top: 22px; }
 .panel h3 { margin: 0 0 8px; font: 600 11px/1.2 var(--f-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
 .math { overflow-x: auto; overflow-y: hidden; padding: 1px 0; }
+.panel p { overflow-x: auto; overflow-y: hidden; } /* a formula inside a sentence cannot wrap: on a phone it scrolls on its own line instead of pushing the whole panel sideways */
 .math + .math { margin-top: 4px; }
 .kids { display: flex; flex-wrap: wrap; gap: 6px; }
 .kid { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font: 500 13px var(--f-ui); color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
@@ -161,6 +162,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 /* toy convolution */
 .cwrap { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-top: 12px; }
 .cgrid { border-collapse: separate; border-spacing: 2px; }
+.cscroll { overflow-x: auto; } /* the 8×8 output grid is wider than the panel of a phone held sideways */
 .cgrid td { padding: 0; }
 .cgrid button, .cgrid span { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; font: 500 11px var(--f-mono); font-variant-numeric: tabular-nums; color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
 .cgrid.in button.on { background: var(--fg); color: var(--surface); border-color: var(--fg); }
@@ -734,7 +736,7 @@ function convOut() {
   const nz = terms.filter(t => t.x && t.w), padded = terms.filter(t => t.r < 0 || t.c < 0 || t.r >= TOYCONV.N || t.c >= TOYCONV.N).length;
   return `<div class="cwrap"><div><div class="mat-title">Ảnh vào 8×8</div><table class="cgrid in">${inGrid}</table></div>`
     + `<div><div class="mat-title">Bộ lọc 3×3</div><table class="cgrid">${kGrid}</table></div></div>`
-    + `<div class="mat-title" style="margin-top: 12px">Output ${r.n}×${r.n}</div><table class="cgrid out">${outGrid}</table>`
+    + `<div class="mat-title" style="margin-top: 12px">Output ${r.n}×${r.n}</div><div class="cscroll"><table class="cgrid out">${outGrid}</table></div>`
     + `<p class="reading"><span>H_out = ⌊(8 + 2·${conv.pad} − 3) / ${conv.stride}⌋ + 1 = ${r.n}</span>`
     + `<span><b>Ô (${pi + 1}, ${pj + 1})</b> = ${nz.length ? nz.map(t => `${t.x}·${fmtV(t.w)}`).join(' + ') : '0'} = <b>${fmtV(r.Y[pi][pj])}</b>${nz.length < 9 ? ' (các tích bằng 0 không ghi ra)' : ''}${padded ? `; ${padded} ô của cửa sổ nằm trên phần đệm (giá trị 0)` : ''}.</span>`
     + `<span>${KNOTE[conv.kernel]}</span></p>`;

@@ -36,3 +36,23 @@ test('the copy button copies the block\'s code', async () => {
   assert.match(await page.evaluate(() => window.__copied), /nn\.Transformer\(d_model=512/);
   await page.context().close();
 });
+
+// found by opening every block at phone sizes: formulas inside a sentence cannot wrap, and the toy convolution's
+// 8×8 output grid is wider than the panel of a phone held sideways
+const PHONE = { width: 390, height: 844 }, SIDEWAYS = { width: 844, height: 390 };
+test('on phones no formula or grid pushes the panel sideways', async () => {
+  for (const [link, viewport, what] of [
+    ['resnet.1.0', PHONE, 'stem conv: H_out = ⌊(224 + 2·3 − 7)/2⌋ + 1 in "Ví dụ số"'],
+    ['densenet.8.0', PHONE, 'dense layer parameter sum in "Tham số"'],
+    ['llm.2.4.1', SIDEWAYS, 'SiLU([−1.5, 0.3, 2]) in "Ví dụ số"'],
+    ['densenet.8.0', SIDEWAYS, 'dense layer parameter sum in "Tham số"'],
+    ['mlp', SIDEWAYS, '2H + H + H² + … in "Tham số"'],
+    ['resnet.2.0.3', SIDEWAYS, 'the toy convolution\'s output grid']
+  ]) {
+    const page = await app.open('#' + link, { viewport, mathjax: true });
+    const [scroll, width] = await page.evaluate(() => { const p = document.getElementById('panel'); return [p.scrollWidth, p.clientWidth]; });
+    assert.ok(scroll <= width, `#${link} at ${viewport.width}×${viewport.height}: the panel scrolls ${scroll - width}px sideways (${what})`);
+    assert.deepEqual(page.errors, [], link);
+    await page.context().close();
+  }
+});

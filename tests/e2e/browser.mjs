@@ -1,6 +1,7 @@
 // Opens the page in headless Chromium without touching the network: three.js is served from node_modules
-// (the version must match the import map), while MathJax, the old-browser import-map shim and the fonts are
-// left out, since no test reads a formula. Reduced motion makes every transition instant.
+// (the version must match the import map); MathJax too when a test asks for it (layout tests: formulas don't
+// wrap), otherwise it is left out with the old-browser import-map shim and the fonts. Reduced motion makes
+// every transition instant.
 import { chromium } from 'playwright';
 import http from 'node:http';
 import { once } from 'node:events';
@@ -11,11 +12,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 
-async function serveThree(route) {
-  const [, version, file] = new URL(route.request().url()).pathname.match(/^\/npm\/three@([^/]+)\/(.*)$/);
-  const local = JSON.parse(await readFile(path.join(ROOT, 'node_modules/three/package.json'), 'utf8')).version;
-  if (local !== version) throw new Error(`index.html imports three@${version} but node_modules has ${local}: update devDependencies`);
-  await route.fulfill({ body: await readFile(path.join(ROOT, 'node_modules/three', file)), contentType: 'text/javascript' });
+async function serveLocal(route) { // a cdn.jsdelivr.net/npm/<name>@<version>/<file> URL, from node_modules
+  const [, name, version, file] = new URL(route.request().url()).pathname.match(/^\/npm\/([^@/]+)@([^/]+)\/(.*)$/);
+  const local = JSON.parse(await readFile(path.join(ROOT, 'node_modules', name, 'package.json'), 'utf8')).version;
+  if (local !== version) throw new Error(`index.html loads ${name}@${version} but node_modules has ${local}: update devDependencies`);
+  await route.fulfill({ body: await readFile(path.join(ROOT, 'node_modules', name, file)), contentType: 'text/javascript' });
 }
 
 export async function start() {
@@ -31,20 +32,22 @@ export async function start() {
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 
   return {
-    // a fresh page at index.html#hash, settled; page.errors collects uncaught errors and console errors
-    async open(hash = '', options = {}) {
+    // a fresh page at index.html#hash, settled (formulas typeset with { mathjax: true }); page.errors collects uncaught errors and console errors
+    async open(hash = '', { mathjax = false, ...options } = {}) {
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce', colorScheme: 'light', ...options });
       const page = await ctx.newPage();
       page.errors = [];
       page.on('pageerror', e => page.errors.push(e.message));
       page.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') page.errors.push(m.text()); });
       await page.route(url => !url.href.startsWith(base), route => route.abort()); // nothing leaves the machine…
-      await page.route('https://cdn.jsdelivr.net/npm/three@*/**', serveThree); // …except three.js, from node_modules
-      await page.route(/cdn\.jsdelivr\.net\/npm\/(mathjax|es-module-shims)@/, route => route.fulfill({ body: '', contentType: 'text/javascript' }));
+      await page.route('https://cdn.jsdelivr.net/npm/three@*/**', serveLocal); // …except three.js, from node_modules
+      await page.route(mathjax ? /cdn\.jsdelivr\.net\/npm\/es-module-shims@/ : /cdn\.jsdelivr\.net\/npm\/(mathjax|es-module-shims)@/, route => route.fulfill({ body: '', contentType: 'text/javascript' }));
+      if (mathjax) await page.route('https://cdn.jsdelivr.net/npm/mathjax@*/**', serveLocal);
       await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
       await page.goto(base + hash);
       await page.waitForSelector('.panel h2');
       await page.waitForTimeout(600);
+      if (mathjax) await page.evaluate(() => window.MathJax.startup.promise.then(() => window.MathJax.typesetPromise([document.getElementById('panel')])));
       return page;
     },
     async close() { await browser.close(); server.close(); }
