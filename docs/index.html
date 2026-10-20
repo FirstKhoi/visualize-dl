@@ -106,9 +106,11 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .kid:hover { border-color: var(--accent); }
 .kid i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .kids-hint { margin-bottom: 8px !important; font-size: 12.5px; color: var(--muted); }
-.code { position: relative; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; }
+.code { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; }
 .code pre { margin: 0; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.6 var(--f-mono); }
-.copy { position: absolute; top: 6px; right: 6px; padding: 3px 8px; font: 500 11.5px var(--f-ui); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sec-head h3 { margin: 0; }
+.copy { padding: 3px 8px; font: 500 11.5px var(--f-ui); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
 .copy:hover { color: var(--fg); }
 .live-ctl { display: grid; gap: 8px; margin-bottom: 4px; }
 .sent { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1051,7 +1053,8 @@ function syncOwners() {
 
 // ---------- UI ----------
 const esc =s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const sec = (h, body) => body ? `<section><h3>${h}</h3>${body}</section>` : '';
+// a panel section; `tool` (a button) sits on the heading's row, outside the content, so it can never cover it
+const sec = (h, body, tool) => body ? `<section>${tool ? `<div class="sec-head"><h3>${h}</h3>${tool}</div>` : `<h3>${h}</h3>`}${body}</section>` : '';
 const nameOf = nd => nd.tag || nd.name;
 
 function renderPanel() {
@@ -1069,7 +1072,7 @@ function renderPanel() {
     + sec('Tham số', i.params && `<p>${i.params}</p>`)
     + sec('Bên trong gồm', !sel && nd.children && `<p class="kids-hint">Nhấp một khối trong 3D hoặc chọn ở đây. Khối có dấu › còn mở tiếp được.</p><div class="kids">`
         + nd.children.map((k, j) => `<button class="kid" type="button" data-k="${j}"><i style="background: var(--c-${cv(k.cat)})"></i>${nameOf(k)}${k.repeat > 1 ? ` ×${k.repeat}` : ''}${k.children ? ' ›' : ''}</button>`).join('') + '</div>')
-    + sec('PyTorch', i.code && `<div class="code"><pre><code>${esc(i.code)}</code></pre><button class="copy" type="button" data-act="copy">Sao chép</button></div>`)
+    + sec('PyTorch', i.code && `<div class="code"><pre><code>${esc(i.code)}</code></pre></div>`, '<button class="copy" type="button" data-act="copy">Sao chép</button>')
     + sec('Cũng xuất hiện ở', alsoIn(nd))
     + sec('Nguồn', nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${r.t}</a>${r.note ? ` <span>(${r.note})</span>` : ''}</li>`).join('')}</ul>`);
   panel.scrollTop = 0;
