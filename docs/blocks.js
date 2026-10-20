@@ -54,33 +54,44 @@ const PAPER = {
   momentum: ['Sutskever và cộng sự (2013), On the importance of initialization and momentum in deep learning', 'https://proceedings.mlr.press/v28/sutskever13.html'],
   playground: ['Smilkov & Carter, TensorFlow Playground (ý tưởng gốc của phòng thí nghiệm này)', 'https://playground.tensorflow.org/'],
   adamw: ['Loshchilov & Hutter (2019), Decoupled Weight Decay Regularization', 'https://arxiv.org/abs/1711.05101'],
-  dlbook: ['Goodfellow, Bengio & Courville (2016), Deep Learning, chương 7: Regularization', 'https://www.deeplearningbook.org/contents/regularization.html']
+  dlbook: ['Goodfellow, Bengio & Courville (2016), Deep Learning, chương 7: Regularization', 'https://www.deeplearningbook.org/contents/regularization.html'],
+  densenet: ['Huang, Liu, van der Maaten & Weinberger (2017), Densely Connected Convolutional Networks', 'https://arxiv.org/abs/1608.06993'],
+  efficientnet: ['Tan & Le (2019), EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks', 'https://arxiv.org/abs/1905.11946'],
+  mobilenet: ['Howard và cộng sự (2017), MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications', 'https://arxiv.org/abs/1704.04861'],
+  mobilenetv2: ['Sandler và cộng sự (2018), MobileNetV2: Inverted Residuals and Linear Bottlenecks', 'https://arxiv.org/abs/1801.04381'],
+  senet: ['Hu, Shen & Sun (2018), Squeeze-and-Excitation Networks', 'https://arxiv.org/abs/1709.01507'],
+  swish: ['Ramachandran, Zoph & Le (2017), Searching for Activation Functions', 'https://arxiv.org/abs/1710.05941'],
+  stochdepth: ['Huang và cộng sự (2016), Deep Networks with Stochastic Depth', 'https://arxiv.org/abs/1603.09382'],
+  vnet: ['Milletari, Navab & Ahmadi (2016), V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation', 'https://arxiv.org/abs/1606.04797'],
+  mienye: ['Mienye và cộng sự (2025), Deep Convolutional Neural Networks in Medical Image Analysis: A Review', 'https://doi.org/10.3390/info16030195']
 };
 const ref = (key, note) => ({ t: PAPER[key][0], u: PAPER[key][1], note });
 
 // Ideas shared across models: blocks with these exact names link to each other ("Cũng xuất hiện ở" in the panel).
 const CONCEPTS = {
-  'Đường tắt residual': ['Cộng residual', 'Cộng đường tắt', 'Add & Norm', 'Cập nhật bộ nhớ cₜ'],
+  'Đường tắt residual': ['Cộng residual', 'Cộng đường tắt', 'Add & Norm', 'Cập nhật bộ nhớ cₜ', 'Stochastic depth + cộng'],
+  'Cổ chai (bottleneck) và cổ chai ngược': ['Bottleneck (identity)', 'Bottleneck đầu (projection)', 'MBConv (identity)', 'MBConv đầu (đổi shape)', 'Conv 1×1 → 4k = 128'],
   'Attention lõi': ['Scaled Dot-Product Attention'],
   'Multi-head attention': ['Multi-Head Self-Attention', 'Masked Multi-Head Attention', 'Cross-Attention', 'Grouped-Query Attention'],
   'Query, key, value': ['Chiếu Q, K, V', 'Q·Kᵀ', 'KV cache'],
   'Mặt nạ': ['Mặt nạ'],
   'Softmax': ['Softmax', 'FC 1000 + Softmax', 'Softmax + Cross-entropy'],
   'Chuẩn hoá': ['LayerNorm', 'LayerNorm cuối', 'RMSNorm', 'RMSNorm cuối', 'BatchNorm'],
-  'Hàm kích hoạt': ['ReLU', 'GELU', 'SiLU', 'tanh(cₜ)', 'Kích hoạt 1', 'Kích hoạt 2'],
-  'Cổng (gating)': ['Cổng quên f', 'Cổng vào i', 'Cổng ra o', 'Nhân cổng ⊙', 'Quên bớt: f ⊙ cₜ₋₁', 'Ghi mới: i ⊙ g', 'Output hₜ = o ⊙ tanh(cₜ)'],
+  'Hàm kích hoạt': ['ReLU', 'GELU', 'SiLU', 'Sigmoid', 'tanh(cₜ)', 'Kích hoạt 1', 'Kích hoạt 2'],
+  'Cổng (gating)': ['Cổng quên f', 'Cổng vào i', 'Cổng ra o', 'Nhân cổng ⊙', 'Quên bớt: f ⊙ cₜ₋₁', 'Ghi mới: i ⊙ g', 'Output hₜ = o ⊙ tanh(cₜ)', 'Squeeze-and-Excitation', 'Nhân theo kênh ⊙'],
   'Khối feed-forward': ['Feed-Forward', 'MLP', 'SwiGLU FFN'],
-  'Lớp Linear (kể cả conv 1×1)': ['Linear 2 → H', 'Linear H → H', 'Linear H → 2', 'Linear 512 → 2048', 'Linear 2048 → 512', 'Linear 768 → 3072', 'Linear 3072 → 768', 'Nhánh cổng W_gate', 'Nhánh giá trị W_up', 'Nhánh xuống W_down', 'Chiếu ra Wᴼ', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)'],
+  'Lớp Linear (kể cả conv 1×1)': ['Linear 2 → H', 'Linear H → H', 'Linear H → 2', 'Linear 512 → 2048', 'Linear 2048 → 512', 'Linear 768 → 3072', 'Linear 3072 → 768', 'Nhánh cổng W_gate', 'Nhánh giá trị W_up', 'Nhánh xuống W_down', 'Chiếu ra Wᴼ', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)', 'Conv 1×1 → 4k = 128', 'Conv 1×1 nén ×0.5', 'Conv 1×1 mở rộng ×6', 'Conv 1×1 chiếu (không kích hoạt)', 'Conv 1×1 → 1280', 'FC giảm (Conv 1×1)', 'FC tăng (Conv 1×1)'],
   'Embedding': ['Token Embedding', 'Embedding', 'Embedding nguồn + Vị trí', 'Embedding đích + Vị trí', 'Patch Embedding'],
   'Mã hoá vị trí': ['Positional Encoding', 'RoPE', 'Cộng vị trí (PE học được)'],
-  'Tích chập': ['Conv 3×3', 'Conv 3×3, bước 2', 'Conv 3×3 (không đệm)', 'Conv 7×7, 64 kênh, bước 2', 'Conv 16×16, bước 16', 'Up-conv 2×2, bước 2', 'Đường tắt: Conv 1×1 + BN', 'Đường tắt: Conv 1×1 bước 2 + BN', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)', 'Conv 1×1 → 2 lớp'],
-  'Pooling': ['MaxPool 3×3, bước 2', 'MaxPool 2×2, bước 2', 'Global Average Pooling'],
-  'Dropout': ['Dropout', 'Cộng + Dropout'],
+  'Tích chập': ['Conv 3×3', 'Conv 3×3, bước 2', 'Conv 3×3 (không đệm)', 'Conv 7×7, 64 kênh, bước 2', 'Conv 16×16, bước 16', 'Up-conv 2×2, bước 2', 'Đường tắt: Conv 1×1 + BN', 'Đường tắt: Conv 1×1 bước 2 + BN', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)', 'Conv 1×1 → 2 lớp',
+    'Conv 1×1 → 4k = 128', 'Conv 3×3 → k = 32', 'Conv 1×1 nén ×0.5', 'Conv 1×1 mở rộng ×6', 'Depthwise 3×3', 'Depthwise 3×3, bước 2', 'Depthwise 5×5', 'Depthwise 5×5, bước 2', 'Conv 1×1 chiếu (không kích hoạt)', 'Conv 1×1 → 1280'],
+  'Pooling': ['MaxPool 3×3, bước 2', 'MaxPool 2×2, bước 2', 'AvgPool 2×2, bước 2', 'Global Average Pooling'],
+  'Dropout': ['Dropout', 'Cộng + Dropout', 'Stochastic depth + cộng'],
   'Lớp đầu ra': ['Linear → từ điển', 'LM head', 'Head phân loại', 'FC 1000 + Softmax', 'Conv 1×1 → 2 lớp', 'Softmax + Cross-entropy'],
   'Đầu vào': ['Token nguồn', 'Token đích (dịch phải)', 'Token vào', 'Ảnh vào', 'Điểm vào (x, y)'],
   'Tách và nối các đầu': ['Tách 8 đầu', 'Tách 12 đầu', 'Nối các đầu', 'Lặp K, V cho nhóm'],
-  'Nối (concat)': ['Nối các đầu', 'Nối [hₜ₋₁; xₜ]', 'Cắt và nối (copy & crop)', 'Thêm token [CLS]'],
-  'Chồng nhiều lớp giống nhau': ['Encoder', 'Decoder', 'LSTM', 'Bottleneck (identity)']
+  'Nối (concat)': ['Nối các đầu', 'Nối [hₜ₋₁; xₜ]', 'Cắt và nối (copy & crop)', 'Thêm token [CLS]', 'Nối kênh'],
+  'Chồng nhiều lớp giống nhau': ['Encoder', 'Decoder', 'LSTM', 'Bottleneck (identity)', 'MBConv (identity)']
 };
 
 const CONV_F = [R`y_{o,i,j} = \sum_{c=1}^{C_{in}} \sum_{u=0}^{k-1} \sum_{v=0}^{k-1} W_{o,c,u,v}\; x_{c,\; s i + u - p,\; s j + v - p}`, R`H_{out} = \left\lfloor \frac{H_{in} + 2p - k}{s} \right\rfloor + 1`];
@@ -100,6 +111,41 @@ const gelu = (shape, size) => n('GELU', 'act', shape, {
   example: R`\(\mathrm{GELU}([-1.5,\ 0.3,\ 2]) = [-0.100,\ 0.185,\ 1.954]\). So với ReLU: \([0,\ 0.3,\ 2]\).`,
   code: 'nn.GELU()'
 }, { size, ref: [ref('gelu')] });
+
+const silu = (shape, size, note = '') => n('SiLU', 'act', shape, {
+  what: 'Nhân x với sigmoid của chính nó. Còn gọi là Swish.',
+  formula: [R`\mathrm{SiLU}(x) = x\,\sigma(x) = \frac{x}{1 + e^{-x}}`],
+  why: 'Mượt, gần ReLU khi |x| lớn, nhưng cho qua một chút giá trị âm và có đạo hàm khác 0 quanh 0, nên tín hiệu học không bị cắt cụt.' + note,
+  example: R`\(\mathrm{SiLU}([-1.5,\ 0.3,\ 2]) = [-0.274,\ 0.172,\ 1.762]\).`,
+  code: 'F.silu(x)   # = x * torch.sigmoid(x)'
+}, { size, ref: [ref('swish')] });
+
+// CNN pieces shared by ResNet, DenseNet, EfficientNet. tail replaces the last sentence of "why" (pre-activation nets cannot fold BN).
+const BN_FOLD = R` Lúc triển khai, BN gộp được hẳn vào conv phía trước: \(W' = \gamma W / \sigma\), \(b' = \beta - \gamma \mu / \sigma\), không tốn thêm phép tính nào.`;
+const bn = (C, H, tail = BN_FOLD) => n('BatchNorm', 'norm', `${C}×${H}×${H}`, {
+  what: R`Chuẩn hoá từng kênh theo trung bình và phương sai tính trên cả batch và mọi vị trí (\(B \times H \times W\) giá trị), rồi co giãn và dịch bằng \(\gamma, \beta\) học được.`,
+  formula: [R`\mu_c = \frac{1}{BHW} \sum_{b,i,j} x_{b,c,i,j}, \qquad \sigma_c^2 = \frac{1}{BHW} \sum_{b,i,j} (x_{b,c,i,j} - \mu_c)^2`, R`y = \gamma_c\, \frac{x - \mu_c}{\sqrt{\sigma_c^2 + \epsilon}} + \beta_c`],
+  why: R`Giữ phân bố activation ổn định giữa các lớp, nên train được với learning rate lớn và ít nhạy với khởi tạo. Khi train dùng thống kê của batch hiện tại; khi suy luận dùng trung bình trượt đã tích luỹ, nên phải gọi model.eval().` + tail,
+  params: R`\(\gamma, \beta\): \(2 \times ${C} = ${fmt(2 * C)}\) tham số học, thêm \(${fmt(2 * C)}\) số thống kê trượt (không học).`,
+  code: `nn.BatchNorm2d(${C})`
+}, { tag: 'BN', size: [0.14, sp(H), sp(H)], ref: [ref('bn')] });
+
+const gapNode = (C, H, why, more = {}) => n('Global Average Pooling', 'pool', `${C}×${H}×${H} → ${C}`, {
+  what: `Lấy trung bình mỗi kênh trên toàn bộ ${H}×${H} vị trí, ra một vector ${C} chiều mô tả cả ảnh.`,
+  formula: [R`z_c = \frac{1}{${H} \cdot ${H}} \sum_{i=1}^{${H}} \sum_{j=1}^{${H}} x_{c,i,j}`],
+  why,
+  code: `z = torch.flatten(nn.AdaptiveAvgPool2d(1)(x), 1)   # (B, ${C})`
+}, { tag: 'Avg Pool', size: [ch(C), 0.22, 0.22], ref: [ref('nin', 'global average pooling')], ...more });
+
+// attr = where torchvision keeps the last Linear (model.fc, model.classifier, ...)
+const fcOut = (C, attr) => n('FC 1000 + Softmax', 'linear', `${C} → 1000`, {
+  what: 'Một lớp Linear cho ra 1000 điểm số, mỗi lớp của ImageNet một điểm, rồi softmax thành xác suất.',
+  formula: [R`\text{logits} = W z + b, \qquad W \in \mathbb{R}^{1000 \times ${C}}`, R`p_k = \frac{e^{\text{logit}_k}}{\sum_{j=1}^{1000} e^{\text{logit}_j}}, \qquad \mathcal{L} = -\log p_{y}`],
+  why: 'Trong PyTorch, softmax nằm sẵn trong hàm loss (cross_entropy nhận logit), nên model chỉ trả về logit. Muốn dùng mạng cho bài toán khác, thường chỉ cần thay lớp này rồi fine-tune.',
+  params: R`\(${C} \times 1000 + 1000 = ${fmt(C * 1000 + 1000)}\).`,
+  code: `model.${attr} = nn.Linear(${C}, num_classes)   # thay đầu ra khi fine-tune
+loss = F.cross_entropy(model(x), y)`
+}, { tag: 'FC → 1000', size: [ch(1000), 0.22, 0.22] });
 
 const layerNorm = (s, d) => n('LayerNorm', 'norm', `${s}×${d}`, {
   what: R`Chuẩn hoá vector ${d} chiều của từng token về trung bình 0, phương sai 1, rồi co giãn và dịch bằng hai vector học được \(\gamma, \beta\).`,

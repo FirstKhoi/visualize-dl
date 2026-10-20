@@ -1,7 +1,7 @@
 # Giải phẫu mạng nơ-ron · Neural Network Anatomy
 
-Explore seven neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
-Khám phá bảy kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
+Explore nine neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
+Khám phá chín kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
 
 ![Drilling into the Transformer's attention, then training the MLP lab](media/demo.gif)
 
@@ -28,8 +28,10 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | **LLaMA 3 8B** | Decoder-only, RMSNorm, RoPE, grouped-query attention, SwiGLU, KV cache, sampling | Masked self-attention on the same toy sentence; next-word sampling with temperature and top-p, and draws you can count |
 | **ViT-B/16** | Patch embedding, [CLS] token, learned positions, pre-LN encoder | – |
 | **ResNet-50** | Stem, bottleneck blocks, BatchNorm, projection shortcuts | Editable 8×8 convolution; gradient through up to 100 layers with and without shortcuts |
+| **DenseNet-121** (Huang et al., 2017) | Dense blocks where every layer reads all earlier feature maps, growth rate, transition layers | Editable 8×8 convolution in each dense layer |
+| **EfficientNet-B0** (Tan & Le, 2019) | MBConv (inverted residual), depthwise convolution, squeeze-and-excitation, stochastic depth, compound scaling | Editable 8×8 convolution as one depthwise channel; gradient through shortcuts |
 | **LSTM** (Zaremba et al., 2014) | Gates, cell state, unrolled time steps | Gradient through time: plain RNN vs. the LSTM cell path |
-| **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop | Unpadded 8×8 convolution |
+| **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop, Dice score | Unpadded 8×8 convolution |
 | **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, full batch or mini-batches, label noise, weight decay, a held-out test set with train/test loss curves, decision boundary, advice read from the curves (including overfitting), real weight matrices painted on the 3D blocks |
 
 The attention and convolution demos use small hand-picked inputs so every number can be read. Only the training lab learns its weights.
@@ -52,7 +54,7 @@ npm run test:e2e    # the page itself in headless Chromium, offline
 ./build-pages.sh    # rebuilds docs/ (the GitHub Pages copy); commit docs/ with your change
 ```
 
-The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, ResNet-50, LSTM, U-Net and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
+The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
 
 ### Files
 
@@ -93,8 +95,10 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **LLaMA 3 8B** | Chỉ decoder, RMSNorm, RoPE, GQA, SwiGLU, KV cache, lấy mẫu | Attention có mặt nạ trên cùng câu đồ chơi; lấy mẫu từ kế tiếp với nhiệt độ T và top-p, bốc thăm và đếm số lần |
 | **ViT-B/16** | Patch embedding, token [CLS], vị trí học được, encoder Pre-LN | – |
 | **ResNet-50** | Stem, khối bottleneck, BatchNorm, đường tắt chiếu | Tích chập 8×8 sửa được; gradient qua tối đa 100 lớp, có và không có đường tắt |
+| **DenseNet-121** (2017) | Dense block: mỗi lớp đọc mọi bản đồ đặc trưng trước nó, growth rate, transition layer | Tích chập 8×8 sửa được trong từng lớp dense |
+| **EfficientNet-B0** (2019) | MBConv (cổ chai ngược), conv depthwise, squeeze-and-excitation, stochastic depth, compound scaling | Tích chập 8×8 sửa được như một kênh depthwise; gradient qua đường tắt |
 | **LSTM** (2014) | Các cổng, bộ nhớ c, trải theo thời gian | Gradient đi ngược theo thời gian: RNN thường so với đường c của LSTM |
-| **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối | Tích chập 8×8 không đệm |
+| **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối, hệ số Dice | Tích chập 8×8 không đệm |
 | **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, full batch hoặc mini-batch, nhiễu nhãn, weight decay, tập test riêng với đường loss train/test, ranh giới quyết định, lời khuyên đọc từ đường loss (kể cả overfitting), ma trận trọng số thật tô lên khối 3D |
 
 Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc được từng con số. Chỉ phòng thí nghiệm huấn luyện là học trọng số thật.
@@ -110,7 +114,7 @@ npm run test:e2e    # chạy chính trang web trong Chromium headless, không c�
 ./build-pages.sh    # build lại docs/ (bản cho GitHub Pages); commit docs/ cùng thay đổi
 ```
 
-Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, ResNet-50, LSTM, U-Net và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
+Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
 
 Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là file ngắn), rồi thêm thẻ `<script>` vào `index.html`. Test sẽ tự nhận file mới.
 

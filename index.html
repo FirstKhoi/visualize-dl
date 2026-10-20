@@ -277,6 +277,8 @@ window.MathJax = {
 <script src="models/llm.js"></script>
 <script src="models/vit.js"></script>
 <script src="models/resnet.js"></script>
+<script src="models/densenet.js"></script>
+<script src="models/efficientnet.js"></script>
 <script src="models/lstm.js"></script>
 <script src="models/unet.js"></script>
 <script src="models/mlp.js"></script>
@@ -406,7 +408,7 @@ function linksOf(node, items) {
 function makeLink(l, items) {
   const A = endpoint(l.a, items), B = endpoint(l.b, items);
   let curve;
-  if (l.kind === 'skip') { // residual arc: up, over the skipped blocks, down into the add
+  if (l.kind === 'skip' || l.arc) { // residual arc (or any link with arc: true): up, over the skipped blocks, down into the target
     const hy = Math.max(...items.filter(it => it.i >= l.a.gap && it.i <= l.b.i).map(it => it.pos.y + it.half.y)) + 0.75;
     curve = new THREE.CatmullRomCurve3([A.p, new V3(A.p.x, hy, A.p.z), new V3(B.p.x, hy, B.p.z), B.p], false, 'centripetal');
   } else {
