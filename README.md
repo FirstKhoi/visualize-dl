@@ -1,7 +1,7 @@
 # Giải phẫu mạng nơ-ron · Neural Network Anatomy
 
-Explore nine neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
-Khám phá chín kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
+Explore ten neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
+Khám phá mười kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
 
 ![Drilling into the Transformer's attention, then training the MLP lab](media/demo.gif)
 
@@ -27,6 +27,7 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | **Transformer** (Vaswani et al., 2017, base) | Encoder–decoder, post-LN, sinusoidal PE, cross-attention | Self-attention on a toy sentence, with causal mask and √dₖ scaling toggles |
 | **LLaMA 3 8B** | Decoder-only, RMSNorm, RoPE, grouped-query attention, SwiGLU, KV cache, sampling | Masked self-attention on the same toy sentence |
 | **ViT-B/16** | Patch embedding, [CLS] token, learned positions, pre-LN encoder | – |
+| **Swin-T** (Liu et al., 2021) | Window attention, shifted windows with cyclic shift and mask, relative position bias, patch merging (a Transformer pyramid like a CNN) | Toy 8×8 patch grid: pick a patch and see what it attends to in a regular and a shifted block, how far it reaches after both, and the mask of its rolled window |
 | **ResNet-50** | Stem, bottleneck blocks, BatchNorm, projection shortcuts | Editable 8×8 convolution; gradient through up to 100 layers with and without shortcuts |
 | **DenseNet-121** (Huang et al., 2017) | Dense blocks where every layer reads all earlier feature maps, growth rate, transition layers | Editable 8×8 convolution in each dense layer |
 | **EfficientNet-B0** (Tan & Le, 2019) | MBConv (inverted residual), depthwise convolution, squeeze-and-excitation, stochastic depth, compound scaling | Editable 8×8 convolution as one depthwise channel; gradient through shortcuts |
@@ -54,14 +55,14 @@ npm run test:e2e    # the page itself in headless Chromium, offline
 ./build-pages.sh    # rebuilds docs/ (the GitHub Pages copy); commit docs/ with your change
 ```
 
-The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
+The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy shifted windows, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, Swin-T, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
 
 ### Files
 
 ```
 index.html        page, 3D scene, panel, lab UI
 blocks.js         shared blocks (attention, FFN, norms…), paper list, concept index
-live.js           what really computes: toy attention, toy conv, gradient experiments, the trainable MLP
+live.js           what really computes: toy attention, toy shifted windows, toy conv, gradient experiments, the trainable MLP
 models/*.js       one file per architecture
 tests/            node --test suites (tests/e2e: in the browser)
 docs/             copy for GitHub Pages, built by build-pages.sh
@@ -94,6 +95,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **Transformer** (2017, base) | Encoder–decoder, Post-LN, PE hình sin, cross-attention | Self-attention trên câu đồ chơi, bật/tắt mặt nạ nhân quả và chia √dₖ |
 | **LLaMA 3 8B** | Chỉ decoder, RMSNorm, RoPE, GQA, SwiGLU, KV cache, lấy mẫu | Attention có mặt nạ trên cùng câu đồ chơi |
 | **ViT-B/16** | Patch embedding, token [CLS], vị trí học được, encoder Pre-LN | – |
+| **Swin-T** (2021) | Attention trong cửa sổ, cửa sổ dịch bằng cuộn vòng và mặt nạ, bias vị trí tương đối, patch merging (Transformer dựng kim tự tháp như CNN) | Lưới đồ chơi 8×8 patch: chọn một patch để xem nó chú ý tới đâu ở khối thường và khối dịch, sau hai khối lan tới đâu, và mặt nạ của cửa sổ chứa nó sau khi cuộn |
 | **ResNet-50** | Stem, khối bottleneck, BatchNorm, đường tắt chiếu | Tích chập 8×8 sửa được; gradient qua tối đa 100 lớp, có và không có đường tắt |
 | **DenseNet-121** (2017) | Dense block: mỗi lớp đọc mọi bản đồ đặc trưng trước nó, growth rate, transition layer | Tích chập 8×8 sửa được trong từng lớp dense |
 | **EfficientNet-B0** (2019) | MBConv (cổ chai ngược), conv depthwise, squeeze-and-excitation, stochastic depth, compound scaling | Tích chập 8×8 sửa được như một kênh depthwise; gradient qua đường tắt |
@@ -114,7 +116,7 @@ npm run test:e2e    # chạy chính trang web trong Chromium headless, không c�
 ./build-pages.sh    # build lại docs/ (bản cho GitHub Pages); commit docs/ cùng thay đổi
 ```
 
-Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
+Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
 
 Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là file ngắn), rồi thêm thẻ `<script>` vào `index.html`. Test sẽ tự nhận file mới.
 

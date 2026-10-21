@@ -166,6 +166,11 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .cgrid.out button { width: 38px; }
 .cgrid.out button.sel { outline: 2px solid var(--fg); outline-offset: -1px; }
 .cgrid span { cursor: default; width: 34px; }
+.sgrid button { width: 15px; height: 15px; border-radius: 3px; }
+.sgrid button.sel { outline: 2px solid var(--fg); outline-offset: 0; }
+.mgrid { border-spacing: 1px; }
+.mgrid span { width: 9px; height: 9px; border: 0; border-radius: 1px; background: color-mix(in srgb, var(--chart-a) 55%, var(--surface)); }
+.mgrid span.off { background: var(--line); }
 
 /* gradient experiment */
 .sl { display: grid; gap: 2px; font-size: 13px; }
@@ -264,6 +269,7 @@ window.MathJax = {
 <script src="models/transformer.js"></script>
 <script src="models/llm.js"></script>
 <script src="models/vit.js"></script>
+<script src="models/swin.js"></script>
 <script src="models/resnet.js"></script>
 <script src="models/densenet.js"></script>
 <script src="models/efficientnet.js"></script>
@@ -397,7 +403,7 @@ function makeLink(l, items) {
   const A = endpoint(l.a, items), B = endpoint(l.b, items);
   let curve;
   if (l.kind === 'skip' || l.arc) { // residual arc (or any link with arc: true): up, over the skipped blocks, down into the target
-    const hy = Math.max(...items.filter(it => it.i >= l.a.gap && it.i <= l.b.i).map(it => it.pos.y + it.half.y)) + 0.75;
+    const hy = Math.max(...items.filter(it => it.i >= l.a.gap && it.i <= l.b.i).map(it => it.pos.y + it.half.y + (it.live ? 1.6 : 0))) + 0.75; // clear the live heatmaps too
     curve = new THREE.CatmullRomCurve3([A.p, new V3(A.p.x, hy, A.p.z), new V3(B.p.x, hy, B.p.z), B.p], false, 'centripetal');
   } else {
     const k = A.p.distanceTo(B.p) * 0.4;
@@ -624,6 +630,7 @@ function paintLive(L) {
   for (const it of L.items) if (it.live) {
     const key = it.node.live, { ctx, tex } = it.live, S = ctx.canvas.width;
     if (key === 'boundary') { ctx.clearRect(0, 0, S, S); ctx.drawImage(labImg, 0, 0, S, S); tex.needsUpdate = true; continue; } // training lab: decision boundary
+    if (key === 'swin') { paintSwin(it.live, it.node.swin); continue; } // Swin: toy window grid or mask
     const M = key === 'conv' ? (memo.c ??= convRun()).Y : key[0] === 'W' ? lab.net.W[key[1] - 1] : LIVE_M[key](memo.a ??= TOY.run(live.words, live)), max = vmax(M);
     const cell = Math.floor((S - 8) / Math.max(M.length, M[0].length)), ox = (S - cell * M[0].length) / 2, oy = (S - cell * M.length) / 2;
     ctx.clearRect(0, 0, S, S);
@@ -726,6 +733,56 @@ function refreshConv() {
   const box = panel.querySelector('.conv-out');
   if (box) { box.innerHTML = convOut(); panel.querySelectorAll('[data-kernel]').forEach(b => b.setAttribute('aria-pressed', b.dataset.kernel === conv.kernel)); }
   paintLive(level);
+}
+
+// toy shifted windows (SWIN in live.js): pick a patch, see which patches it may attend to in each kind of block
+const swin = { pick: [7, 3] };
+const REGION = ['attn', 'embed', 'act', 'linear', 'add', 'pool', 'norm', 'block', 'io']; // one colour per window
+const isPick = q => q[0] === swin.pick[0] && q[1] === swin.pick[1];
+const swinGrid = (title, cell) => `<div><div class="mat-title">${title}</div><table class="cgrid sgrid">` + Array.from({ length: SWIN.G }, (_, a) => '<tr>' + Array.from({ length: SWIN.G }, (_, b) => {
+  const { p, r, on } = cell(a, b);
+  return `<td><button type="button" data-sp="${p}" class="${isPick(p) ? 'sel' : ''}" style="background: color-mix(in srgb, var(--c-${REGION[r]}) ${on ? 75 : 15}%, var(--surface))" aria-label="Patch hàng ${p[0] + 1} cột ${p[1] + 1}${on ? ', được tô' : ''}"></button></td>`;
+}).join('') + '</tr>').join('') + '</table></div>';
+function swinOut() {
+  const p = swin.pick, G = SWIN.G, M = SWIN.M, at = ([a, b]) => a * G + b, [a0, b0] = SWIN.win(p);
+  const seeA = new Set(SWIN.sees(p, false).map(at)), seeB = new Set(SWIN.sees(p, true).map(at)), far = SWIN.reach(p);
+  const mask = SWIN.mask(p), n = mask.length, ok = mask.flat().filter(v => v === 0).length;
+  const k = new Set(Array.from({ length: n }, (_, t) => SWIN.region(...SWIN.src(a0 + Math.floor(t / M), b0 + t % M), true))).size;
+  const inWin = (a, b) => a >= a0 && a < a0 + M && b >= b0 && b < b0 + M;
+  return '<div class="cwrap">'
+    + swinGrid('Khối W-MSA: cửa sổ thường', (a, b) => ({ p: [a, b], r: SWIN.region(a, b, false), on: seeA.has(a * G + b) }))
+    + swinGrid('Khối SW-MSA: cửa sổ dịch', (a, b) => ({ p: [a, b], r: SWIN.region(a, b, true), on: seeB.has(a * G + b) }))
+    + swinGrid('Sau 2 khối: đã nhận tin từ', (a, b) => ({ p: [a, b], r: SWIN.region(a, b, false), on: far.has(a * G + b) }))
+    + swinGrid(`Lưới sau khi cuộn (roll −${SWIN.S})`, (a, b) => ({ p: SWIN.src(a, b), r: SWIN.region(...SWIN.src(a, b), true), on: inWin(a, b) }))
+    + `<div><div class="mat-title">Mặt nạ cửa sổ đó (${n}×${n})</div><table class="cgrid mgrid">${mask.map(row => `<tr>${row.map(v => `<td><span class="${v ? 'off' : ''}"></span></td>`).join('')}</tr>`).join('')}</table></div></div>`
+    + `<p class="reading"><span><b>Patch (${p[0] + 1}, ${p[1] + 1})</b>: khối W-MSA cho nó chú ý tới ${seeA.size} patch trong cửa sổ của nó, khối SW-MSA ngay sau tới ${seeB.size} patch. Sau hai khối nó đã nhận thông tin từ <b>${far.size}</b> patch${far.size > seeA.size ? ', vượt ra ngoài cửa sổ ban đầu' : ''}.</span>`
+    + `<span>${k > 1 ? `Sau khi cuộn, cửa sổ chứa nó gom ${k} vùng vốn không kề nhau trong lưới gốc, nên mặt nạ chỉ cho ${ok} trong ${n * n} cặp chú ý tới nhau (ô màu); các cặp còn lại bị cộng −∞.` : 'Sau khi cuộn, cửa sổ chứa nó là một vùng liền trong lưới gốc, nên không cần mặt nạ.'}</span></p>`;
+}
+const swinSection = () => `<section class="live swin"><h3>Số chạy thật</h3>
+  <p class="kids-hint">Lưới đồ chơi ${SWIN.G}×${SWIN.G} patch, cửa sổ ${SWIN.M}×${SWIN.M}, dịch ${SWIN.S} (Swin-T thật ở tầng 1: 56×56 patch, cửa sổ 7×7, dịch 3). Mỗi màu là một cửa sổ. Bấm một patch: ô đậm là những patch nó được chú ý tới. Heatmap 3D trên khối cũng đổi theo.</p>
+  <div class="swin-out">${swinOut()}</div></section>`;
+function refreshSwin() {
+  const box = panel.querySelector('.swin-out');
+  if (box) box.innerHTML = swinOut();
+  paintLive(level);
+}
+function paintSwin({ ctx, tex }, o) { // o = node.swin: { shifted } or { rolled } paints the patch grid, { mask } the mask
+  const S = ctx.canvas.width, G = SWIN.G, p = swin.pick, tmp = new THREE.Color();
+  const box = (x, y, c, col) => { ctx.fillStyle = col.getStyle(); ctx.fillRect(x + 2, y + 2, c - 4, c - 4); };
+  ctx.clearRect(0, 0, S, S);
+  if (o.mask) {
+    const mask = SWIN.mask(p), c = (S - 8) / mask.length;
+    mask.forEach((row, i) => row.forEach((v, j) => box(4 + j * c, 4 + i * c, c, v ? theme.line : tmp.lerpColors(theme.surface, theme.chartA, 0.6))));
+  } else {
+    const c = (S - 8) / G, sh = !!(o.shifted || o.rolled), mine = SWIN.region(...p, sh), [a0, b0] = SWIN.win(p);
+    for (let a = 0; a < G; a++) for (let b = 0; b < G; b++) {
+      const q = o.rolled ? SWIN.src(a, b) : [a, b], r = SWIN.region(...q, sh);
+      const on = o.rolled ? a >= a0 && a < a0 + SWIN.M && b >= b0 && b < b0 + SWIN.M : r === mine;
+      box(4 + b * c, 4 + a * c, c, tmp.lerpColors(theme.surface, theme.cat(REGION[r]), on ? 0.85 : 0.25));
+      if (isPick(q)) { ctx.lineWidth = 5; ctx.strokeStyle = theme.fg.getStyle(); ctx.strokeRect(4 + b * c + 4, 4 + a * c + 4, c - 8, c - 8); }
+    }
+  }
+  tex.needsUpdate = true;
 }
 
 // gradient experiment: how much gradient survives L layers (or T time steps) going backwards
@@ -956,7 +1013,7 @@ function renderPanel() {
     + `<h2>${nd.name}</h2>` + (nd.shape ? `<p class="shape">${nd.shape}</p>` : '') + `<p class="what">${i.what}</p>`
     + (nd.exp === 'train' ? labSection() : '') // the lab is the point of these blocks: controls before the formulas
     + sec('Công thức', i.formula && i.formula.map(f => `<div class="math">\\[${f}\\]</div>`).join(''))
-    + (nd.live === 'conv' ? convSection() : nd.live && nd.live !== 'boundary' && nd.live[0] !== 'W' ? liveSection(nd.live) : '')
+    + (nd.live === 'conv' ? convSection() : nd.live === 'swin' ? swinSection() : nd.live && nd.live !== 'boundary' && nd.live[0] !== 'W' ? liveSection(nd.live) : '')
     + (nd.exp && nd.exp !== 'train' ? expSection(nd.exp) : '')
     + sec('Vì sao như vậy', i.why && `<p>${i.why}</p>`)
     + sec('Ví dụ số', i.example && `<p>${i.example}</p>`)
@@ -982,6 +1039,7 @@ panel.addEventListener('click', e => {
   else if (b.dataset.kernel) { conv.kernel = b.dataset.kernel; conv.pick = null; refreshConv(); }
   else if (b.dataset.px) { const [i, j] = b.dataset.px.split(',').map(Number); conv.img[i][j] ^= 1; refreshConv(); }
   else if (b.dataset.out) { conv.pick = b.dataset.out.split(',').map(Number); refreshConv(); }
+  else if (b.dataset.sp) { swin.pick = b.dataset.sp.split(',').map(Number); refreshSwin(); }
   else if (b.dataset.jump) jump(b.dataset.jump);
   else if (b.dataset.lab) labAction(b.dataset.lab);
   else if (b.dataset.labset) labSet(b.dataset.labset, b.dataset.val);

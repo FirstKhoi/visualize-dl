@@ -29,6 +29,36 @@ const TOY = (() => {
   return { F, KD, VOCAB, WQ, WK, PRESETS, run };
 })();
 
+// Toy shifted windows (Swin) on an 8×8 patch grid: 4×4 windows, shift 2 (Swin-T stage 1: 56×56, M = 7, shift 3).
+// Two patches may attend to each other when they share a region: the window (regular layer), or the shifted window
+// in original coordinates (shifted layer). The cyclic roll packs several such regions into one batched window; the
+// mask keeps them apart, so "shifted window" and "same rolled window + same mask label" are the same rule.
+const SWIN = (() => {
+  const G = 8, M = 4, S = M / 2;
+  const band = (x, shifted) => shifted ? (x < S ? 0 : 1 + Math.floor((x - S) / M)) : Math.floor(x / M);
+  const nb = shifted => shifted ? 1 + Math.ceil((G - S) / M) : G / M;
+  const region = (i, j, shifted) => band(i, shifted) * nb(shifted) + band(j, shifted);
+  const cells = Array.from({ length: G * G }, (_, k) => [Math.floor(k / G), k % G]);
+  const sees = ([i, j], shifted) => cells.filter(([a, b]) => region(a, b, shifted) === region(i, j, shifted));
+  // after a regular block then a shifted block, p has read the regular window of everything it saw in the second
+  const reach = p => new Set(sees(p, true).flatMap(q => sees(q, false)).map(([a, b]) => a * G + b));
+  // torch.roll(x, (-S, -S)): rolled cell (a, b) holds original patch src(a, b); win(p) = top-left of p's batched window
+  const src = (a, b) => [(a + S) % G, (b + S) % G];
+  const win = ([i, j]) => [Math.floor(((i - S + G) % G) / M) * M, Math.floor(((j - S + G) % G) / M) * M];
+  // M²×M² mask of p's batched window: 0 = same region, −∞ otherwise (the real code adds −100)
+  function mask(p) {
+    const [a0, b0] = win(p), ids = [];
+    for (let a = a0; a < a0 + M; a++) for (let b = b0; b < b0 + M; b++) ids.push(region(...src(a, b), true));
+    return ids.map(x => ids.map(y => x === y ? 0 : -Infinity));
+  }
+  const zeros = p => mask(p).flat().filter(v => v === 0).length;
+  // self-check: a bottom-edge patch sees 16 → 8 patches, reaches 32 after two blocks, and its rolled window mixes
+  // two regions (128 of 256 pairs allowed); a centre patch reaches the whole grid and needs no mask
+  console.assert(sees([7, 3], false).length === 16 && sees([7, 3], true).length === 8 && reach([7, 3]).size === 32 && zeros([7, 3]) === 128
+    && sees([0, 0], true).length === 4 && zeros([0, 0]) === 64 && reach([3, 3]).size === 64 && zeros([3, 3]) === 256, 'toy shifted windows mismatch');
+  return { G, M, S, region, sees, reach, src, win, mask };
+})();
+
 // Toy convolution on an 8×8 image (cross-correlation, like nn.Conv2d).
 const TOYCONV = (() => {
   const N = 8, img = f => Array.from({ length: N }, (_, i) => Array.from({ length: N }, (_, j) => f(i, j) ? 1 : 0));
