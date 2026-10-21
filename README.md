@@ -33,7 +33,7 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | **EfficientNet-B0** (Tan & Le, 2019) | MBConv (inverted residual), depthwise convolution, squeeze-and-excitation, stochastic depth, compound scaling | Editable 8×8 convolution as one depthwise channel; gradient through shortcuts |
 | **LSTM** (Zaremba et al., 2014) | Gates, cell state, unrolled time steps | Gradient through time: plain RNN vs. the LSTM cell path |
 | **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop, Dice score | Unpadded 8×8 convolution |
-| **Stable Diffusion v1.5** (Rombach et al., 2022) | CLIP text encoder, the noise-predicting U-Net (ResBlocks with timestep embedding, GroupNorm, self- and cross-attention, GEGLU), classifier-free guidance, the DDIM step and its 50-step loop, the VAE decoder | – |
+| **Stable Diffusion v1.5** (Rombach et al., 2022) | CLIP text encoder, the noise-predicting U-Net (ResBlocks with timestep embedding, GroupNorm, self- and cross-attention, GEGLU), classifier-free guidance, the DDIM step and its 50-step loop, the VAE decoder | Toy diffusion in 2D with the real noise schedule and DDIM: 300 points go from noise to the clusters of a prompt; change the prompt, the guidance and the number of steps, and scrub through the steps |
 | **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, full batch or mini-batches, label noise, weight decay, a held-out test set with train/test loss curves, decision boundary, advice read from the curves (including overfitting), real weight matrices painted on the 3D blocks |
 
 The attention and convolution demos use small hand-picked inputs so every number can be read. Only the training lab learns its weights.
@@ -63,7 +63,7 @@ The tests run every script of the page in Node. That covers the self-checks insi
 ```
 index.html        page, 3D scene, panel, lab UI
 blocks.js         shared blocks (attention, FFN, norms…), paper list, concept index
-live.js           what really computes: toy attention, toy shifted windows, toy conv, gradient experiments, the trainable MLP
+live.js           what really computes: toy attention, toy shifted windows, toy conv, gradient experiments, the trainable MLP, next-word sampling, toy diffusion
 models/*.js       one file per architecture
 tests/            node --test suites (tests/e2e: in the browser)
 docs/             copy for GitHub Pages, built by build-pages.sh
@@ -102,7 +102,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **EfficientNet-B0** (2019) | MBConv (cổ chai ngược), conv depthwise, squeeze-and-excitation, stochastic depth, compound scaling | Tích chập 8×8 sửa được như một kênh depthwise; gradient qua đường tắt |
 | **LSTM** (2014) | Các cổng, bộ nhớ c, trải theo thời gian | Gradient đi ngược theo thời gian: RNN thường so với đường c của LSTM |
 | **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối, hệ số Dice | Tích chập 8×8 không đệm |
-| **Stable Diffusion v1.5** (2022) | CLIP text encoder, U-Net đoán nhiễu (ResBlock có nhúng bước t, GroupNorm, self-attention và cross-attention, GEGLU), classifier-free guidance, bước DDIM và vòng lặp 50 bước, VAE decoder | – |
+| **Stable Diffusion v1.5** (2022) | CLIP text encoder, U-Net đoán nhiễu (ResBlock có nhúng bước t, GroupNorm, self-attention và cross-attention, GEGLU), classifier-free guidance, bước DDIM và vòng lặp 50 bước, VAE decoder | Khuếch tán đồ chơi trong 2D với đúng lịch nhiễu và DDIM: 300 điểm đi từ nhiễu về các cụm của câu mô tả; đổi câu mô tả, guidance, số bước, và kéo qua từng bước |
 | **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, full batch hoặc mini-batch, nhiễu nhãn, weight decay, tập test riêng với đường loss train/test, ranh giới quyết định, lời khuyên đọc từ đường loss (kể cả overfitting), ma trận trọng số thật tô lên khối 3D |
 
 Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc được từng con số. Chỉ phòng thí nghiệm huấn luyện là học trọng số thật.

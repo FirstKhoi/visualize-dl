@@ -199,7 +199,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .labbtn { padding: 6px 12px; font: 600 13px var(--f-ui); color: var(--fg); background: var(--scene); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .labbtn.primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
 .labbtn:hover { border-color: var(--accent); }
-#lab-canvas { display: block; width: min(100%, 280px); height: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
+#lab-canvas, #diff-canvas { display: block; width: min(100%, 280px); height: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
 .lab-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px !important; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lab-stats b { color: var(--fg); font-family: var(--f-mono); }
 /* toy sampling: one row per word; faint bar = probability before top-p, solid bar = after */
@@ -648,7 +648,8 @@ const LIVE = {
   sample: { demo: 'sample', image: () => smpImage('final'), section: () => smpSection() }, // toy next-word sampling: after top-p
   sampleProbs: { demo: 'sample', image: () => smpImage('probs'), section: () => smpSection() }, // … before the cut
   sampleDraws: { demo: 'sample', image: () => smpImage('counts'), section: () => smpSection() }, // … what the draws picked
-  swin: { demo: 'swin', image: nd => swinImage(nd.swin), section: () => swinSection() } // toy shifted windows: node.swin says which grid
+  swin: { demo: 'swin', image: nd => swinImage(nd.swin), section: () => swinSection() }, // toy shifted windows: node.swin says which grid
+  diff: { demo: 'diff', image: nd => diffImage(nd.diff.at), section: () => difSection() } // toy diffusion: the start, current or last step
 };
 const showsDemo = (L, demo) => L.items.some(it => it.live && LIVE[it.node.live].demo === demo);
 const fmtV = v => v === -Infinity ? '−∞' : Number.isInteger(v) ? String(v) : v.toFixed(2);
@@ -818,6 +819,88 @@ function swinImage(o) { // o = node.swin: { shifted } or { rolled } paints the p
   return can;
 }
 
+// toy diffusion (DIFF in live.js): 300 points denoised from Gaussian noise with Stable Diffusion's schedule, DDIM and guidance
+const GUIDES = [0, 1, 2, 3, 5, 7.5, 10, 15], DSTEPS = [5, 10, 20, 50];
+const dif = { prompt: 'mèo', s: 5, N: 3, k: 50, seed: 3, run: null, key: '' }; // s, N: slider positions (7.5, 50); k: the step on screen
+function difRun() { // sample again only when a setting changes, not when scrubbing through the steps
+  const key = [dif.prompt, dif.s, dif.N, dif.seed].join('|');
+  if (dif.key !== key) { dif.run = DIFF.sample({ prompt: dif.prompt, s: GUIDES[dif.s], N: DSTEPS[dif.N], seed: dif.seed }); dif.key = key; }
+  return dif.run;
+}
+// the noise level of frame k: frame 0 is the starting noise (used as z at the first timestep), frame N is the result
+const difLevel = (r, k) => k < r.ts.length ? { t: r.ts[k], ab: DIFF.AB[r.ts[k]] } : { t: 0, ab: DIFF.AB[0] };
+const difCanvas = {};
+function diffImage(at) { // the points of one frame, over rings showing where each cluster sits at that noise level
+  const can = difCanvas[at] ??= Object.assign(document.createElement('canvas'), { width: 384, height: 384 });
+  const g = can.getContext('2d'), S = can.width, r = difRun(), N = r.ts.length, tmp = new THREE.Color();
+  const k = at === 'start' ? 0 : at === 'end' ? N : Math.min(dif.k, N), { ab } = difLevel(r, k);
+  const span = 2.6, px = v => (v + span) / (2 * span) * S, sa = Math.sqrt(ab), rad = 2 * Math.sqrt(ab * DIFF.S ** 2 + 1 - ab) / (2 * span) * S;
+  g.clearRect(0, 0, S, S);
+  g.fillStyle = theme.surface.getStyle(); g.globalAlpha = 0.85; g.fillRect(0, 0, S, S); g.globalAlpha = 1;
+  for (const [p, ms] of Object.entries(DIFF.PROMPTS)) for (const [x, y] of ms) { // z_t of a cluster ~ N(√ᾱ μ, (ᾱσ² + 1 − ᾱ) I): a ring 2 std wide
+    g.beginPath(); g.arc(px(sa * x), px(-sa * y), rad, 0, 2 * Math.PI);
+    g.fillStyle = tmp.lerpColors(theme.surface, p === 'mèo' ? theme.chartA : theme.chartB, 0.3).getStyle(); g.fill();
+    g.lineWidth = 3; g.strokeStyle = (p === 'mèo' ? theme.chartA : theme.chartB).getStyle(); g.stroke();
+  }
+  g.fillStyle = theme.fg.getStyle();
+  for (const [x, y] of r.frames[k]) { g.beginPath(); g.arc(px(x), px(-y), 3.5, 0, 2 * Math.PI); g.fill(); }
+  return can;
+}
+const difSlide = (key, label, max, show) => `<label class="sl" for="dif-${key}"><span>${label}<output id="o-dif-${key}">${show(dif[key])}</output></span><input type="range" id="dif-${key}" data-dif="${key}" min="0" max="${max}" step="1" value="${dif[key]}"></label>`;
+const difShowK = k => `${k}/${DSTEPS[dif.N]}`;
+function difOut() {
+  const r = difRun(), N = r.ts.length, k = Math.min(dif.k, N), { t, ab } = difLevel(r, k), sg = GUIDES[dif.s];
+  const level = `<b>Bước ${k}/${N}</b>${k === 0 ? ' (nhiễu ban đầu)' : ''}: t = ${t}, ᾱ = ${ab.toFixed(3)}, nên z_t = ${Math.sqrt(ab).toFixed(2)}·z₀ + ${Math.sqrt(1 - ab).toFixed(2)}·ε.`;
+  let where;
+  if (k < N) where = ' Ở mức nhiễu này các cụm co về giữa và bị nhiễu phủ (vòng tròn là chỗ chúng đang nằm), nên điểm chưa tách được. Kéo tới bước cuối để xem kết quả.';
+  else {
+    const c = { 'mèo': 0, 'chó': 0, none: 0 }, pts = r.frames[N];
+    for (const q of pts) { const m = DIFF.nearest(q); c[m.d < 3 * DIFF.S ? m.prompt : 'none']++; }
+    const pct = v => `${Math.round(v / pts.length * 100)}%`;
+    where = ` Kết quả: ${pct(c['mèo'])} điểm vào cụm "mèo", ${pct(c['chó'])} vào cụm "chó", ${pct(c.none)} không vào cụm nào.`;
+  }
+  const guide = !dif.prompt ? 'Câu rỗng: không có điều kiện, nên điểm chia về cả bốn cụm, và guidance không còn gì để khuếch đại.'
+    : sg === 0 ? 'Guidance s = 0 bỏ hẳn câu mô tả: kết quả như câu rỗng.'
+    : sg === 1 ? 's = 1 lấy mẫu đúng phân bố của câu mô tả, không khuếch đại.'
+    : sg < 10 ? `s = ${sg} đẩy mỗi bước ra xa dự đoán của câu rỗng: điểm dồn hẳn về phía cụm "${dif.prompt}" và lệch dần ra mép ngoài của cụm.`
+    : `s = ${sg} đẩy quá tay: nhiều điểm vọt qua khỏi cụm. Với ảnh thật, đó là lúc màu bị cháy và chi tiết bị thổi phồng.`;
+  return `<p class="reading"><span>${level}${where}</span><span>${guide}</span></p>`;
+}
+const difSection = () => `<section class="live diff"><h3>Số chạy thật</h3>
+  <p class="kids-hint">Khuếch tán đồ chơi trong 2D: mỗi "ảnh" là một điểm, dữ liệu là bốn cụm, hai cụm "mèo" bên trái và hai cụm "chó" bên phải. Lịch nhiễu, các bước DDIM và guidance đúng như Stable Diffusion; nhiễu dự đoán ε̂ là kết quả chính xác cho dữ liệu này, tức thứ một mạng được train hoàn hảo sẽ đưa ra. 300 điểm xuất phát từ nhiễu Gauss.</p>
+  <div class="live-ctl">
+    <div class="vocab"><span>Câu mô tả:</span>${['mèo', 'chó', ''].map(p => `<button type="button" data-dprompt="${p}" aria-pressed="${(dif.prompt || '') === p}">${p || '(câu rỗng)'}</button>`).join('')}</div>
+    ${difSlide('s', 'Guidance s', GUIDES.length - 1, i => GUIDES[i])}
+    ${difSlide('N', 'Số bước DDIM', DSTEPS.length - 1, i => DSTEPS[i])}
+    ${difSlide('k', 'Bước đang xem', DSTEPS[dif.N], difShowK)}
+    <div class="lab-btns"><button type="button" class="labbtn" data-dseed="1">Nhiễu khác</button></div>
+  </div>
+  <canvas id="diff-canvas" width="384" height="384" role="img" aria-label="300 điểm ở bước đang xem, trên các vòng tròn đánh dấu chỗ của bốn cụm"></canvas>
+  <div class="dif-out">${difOut()}</div></section>`;
+function difDraw() {
+  const c = panel.querySelector('#diff-canvas'), g = c?.getContext('2d');
+  if (g) { g.clearRect(0, 0, c.width, c.height); g.drawImage(diffImage('now'), 0, 0); }
+}
+function difRefresh() {
+  difDraw();
+  const box = panel.querySelector('.dif-out');
+  if (box) box.innerHTML = difOut();
+  panel.querySelectorAll('[data-dprompt]').forEach(b => b.setAttribute('aria-pressed', b.dataset.dprompt === (dif.prompt || '')));
+  if (showsDemo(level, 'diff')) paintLive(level);
+}
+function difSlider(t) {
+  const key = t.dataset.dif;
+  dif[key] = +t.value;
+  if (key === 'N') { // a new run: jump to its last step, and the step slider gets the new range
+    dif.k = DSTEPS[dif.N];
+    const ks = panel.querySelector('#dif-k');
+    ks.max = dif.k; ks.value = dif.k;
+    panel.querySelector('#o-dif-k').textContent = difShowK(dif.k);
+  }
+  panel.querySelector(`#o-dif-${key}`).textContent = key === 's' ? GUIDES[dif.s] : key === 'N' ? DSTEPS[dif.N] : difShowK(dif.k);
+  difRefresh();
+}
+
 // gradient experiment: how much gradient survives L layers (or T time steps) going backwards
 const exp = { res: { L: 50, sigma: 0.9, beta: 0.2 }, rnn: { T: 50, sigma: 1, f: 0.95 } };
 const EXP = {
@@ -899,6 +982,7 @@ panel.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.labkey) return labSlider(t);
   if (t.dataset.smp) return smpSlider(t);
+  if (t.dataset.dif) return difSlider(t);
   if (!t.dataset.exp) return;
   exp[t.dataset.exp][t.dataset.key] = +t.value;
   panel.querySelector(`#o-${t.dataset.exp}-${t.dataset.key}`).textContent = t.value;
@@ -1139,6 +1223,7 @@ function renderPanel() {
     + sec('Nguồn', nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${r.t}</a>${r.note ? ` <span>(${r.note})</span>` : ''}</li>`).join('')}</ul>`);
   panel.scrollTop = 0;
   if (nd.exp === 'train') labDraw();
+  if (nd.live === 'diff') difDraw();
   window.MathJax?.typesetPromise?.([panel]).catch(() => {});
 }
 
@@ -1154,6 +1239,8 @@ panel.addEventListener('click', e => {
   else if (b.dataset.px) { const [i, j] = b.dataset.px.split(',').map(Number); conv.img[i][j] ^= 1; refreshConv(); }
   else if (b.dataset.out) { conv.pick = b.dataset.out.split(',').map(Number); refreshConv(); }
   else if (b.dataset.sp) { swin.pick = b.dataset.sp.split(',').map(Number); refreshSwin(); }
+  else if (b.dataset.dprompt !== undefined) { dif.prompt = b.dataset.dprompt || null; difRefresh(); }
+  else if (b.dataset.dseed) { dif.seed++; difRefresh(); }
   else if (b.dataset.jump) jump(b.dataset.jump);
   else if (b.dataset.lab) labAction(b.dataset.lab);
   else if (b.dataset.smpdo) smpDo(b.dataset.smpdo);

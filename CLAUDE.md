@@ -1,6 +1,6 @@
 # visualize-dl: Giải phẫu mạng nơ-ron
 
-Trang web 3D (three.js) để khám phá các mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net và một lab train MLP ngay trong trang. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
+Trang web 3D (three.js) để khám phá các mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, Swin-T, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion v1.5 và một lab train MLP ngay trong trang. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
 
 Demo: https://firstkhoi.github.io/visualize-dl/ (GitHub Pages phục vụ `docs/` trên `main`). Chủ repo là sinh viên đang xây portfolio cho hồ sơ thạc sĩ/tiến sĩ MIT. Phần train mô hình bằng PyTorch nên để chủ repo tự viết; Claude lo phần tích hợp vào trang.
 
@@ -21,7 +21,7 @@ Mở `index.html` trực tiếp bằng trình duyệt (`file://`) là chạy đ�
 |---|---|
 | `index.html` | Toàn bộ giao diện: CSS, cảnh 3D, panel, lab, các demo. Một `<script type="module">` lớn |
 | `blocks.js` | Khối dùng chung (attention, FFN, các lớp norm…), danh sách paper `PAPER` (dùng qua `ref(key, note)`), chỉ mục khái niệm `CONCEPTS` |
-| `live.js` | Mọi thứ thật sự tính toán: `rng`/`gauss` (có seed), `TOY` (attention đồ chơi), `TOYCONV`, `TRAIN` (MLP train trong trang), `GRAD` (thí nghiệm gradient), `SAMPLE` (lấy mẫu từ kế tiếp) |
+| `live.js` | Mọi thứ thật sự tính toán: `rng`/`gauss` (có seed), `TOY` (attention đồ chơi), `TOYCONV`, `TRAIN` (MLP train trong trang), `GRAD` (thí nghiệm gradient), `SAMPLE` (lấy mẫu từ kế tiếp), `SWIN` (cửa sổ dịch đồ chơi), `DIFF` (khuếch tán 2D: lịch nhiễu của SD, bộ khử nhiễu chính xác cho hỗn hợp Gauss, DDIM, guidance) |
 | `models/*.js` | Mỗi file một kiến trúc, dựng cây khối bằng `n(name, cat, shape, info, more)` |
 | `docs/` | Bản cho GitHub Pages do `build-pages.sh` sinh ra. Không sửa tay |
 | `tests/*.test.mjs` | Unit test. `tests/load.mjs` chạy các `<script src>` của `index.html` trong Node, biến `console.assert` thành lỗi thật |
@@ -31,7 +31,7 @@ Script là classic script, không dùng ES module, để trang vẫn mở đư�
 
 ### Khối có số chạy thật: bảng `LIVE` trong `index.html`
 Một khối gắn `live: '<key>'` trong `models/*.js`. `LIVE[key]` khai báo ba thứ:
-- `matrix(memo)` hoặc `image()`: thứ được vẽ trên khối 3D;
+- `matrix(memo)` hoặc `image(node)`: thứ được vẽ trên khối 3D (`image` nhận node đang vẽ, nên một key có thể vẽ khác nhau theo cấu hình của khối, ví dụ `node.swin`, `node.diff`);
 - `section()`: phần giải thích trong panel;
 - `demo`: tên demo sở hữu khối, để biết khi nào cần vẽ lại (dùng qua `showsDemo(level, demo)`).
 
@@ -39,7 +39,9 @@ Các key hiện có:
 - attention: `qk`, `scale`, `mask`, `softmax`, `sdpa`, `av`;
 - tích chập: `conv`;
 - lab: `W1`, `W2`, `W3`, `boundary`;
-- sampling: `sample`, `sampleProbs`, `sampleDraws`.
+- sampling: `sample`, `sampleProbs`, `sampleDraws`;
+- Swin: `swin` (`node.swin` = `{ shifted }`, `{ rolled }` hoặc `{ mask }`);
+- khuếch tán: `diff` (`node.diff.at` = `start`, `now` hoặc `end`).
 
 Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.mjs` tự mở một khối của mỗi key và kiểm tra phần trong panel; nếu class của section khác `live` thì cập nhật map `SECTION` trong file test đó.
 
@@ -71,12 +73,13 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - Nếu PR của branch đã merge: chạy `git fetch origin main && git checkout -B claude/charming-brown-ogcaqu origin/main`, rồi `git push --force-with-lease`.
 - Cuối commit message thêm dòng `Co-Authored-By` như các commit trước.
 
-## Trạng thái (cập nhật lần cuối 2026-10-20; sửa mục này khi tiến độ thay đổi)
+## Trạng thái (cập nhật lần cuối 2026-10-21; sửa mục này khi tiến độ thay đổi)
 
 **Đã xong**
 - PR #1: sửa 6 bug của lab; thêm test Node, CI, README song ngữ, LICENSE MIT.
 - PR #2: test e2e; sửa các lỗi nhỏ (▶ sau khi giải xong, điểm cuối đồ thị, `aria-live`, tooltip, tốc độ).
-- PR #3 (đang mở lúc ghi): bảng `LIVE` và `rng` dùng chung; overfitting trong lab (tập test, nhiễu nhãn, weight decay, mini-batch); demo sampling của LLaMA (nhiệt độ T, top-p, bốc thăm); đã merge `main` (DenseNet-121, EfficientNet-B0); nút "Sao chép" không còn che code; panel không còn cuộn ngang trên điện thoại.
+- PR #3 (merge vào `main` ngày 2026-10-21): bảng `LIVE` và `rng` dùng chung; overfitting trong lab (tập test, nhiễu nhãn, weight decay, mini-batch); demo sampling của LLaMA (nhiệt độ T, top-p, bốc thăm); đã merge `main` (DenseNet-121, EfficientNet-B0); nút "Sao chép" không còn che code; panel không còn cuộn ngang trên điện thoại.
+- Commit thẳng lên `main` (theo yêu cầu chủ repo, 2026-10-19 đến 2026-10-21): DenseNet-121, EfficientNet-B0, hệ số Dice cho U-Net (đối chiếu với bài review CNN ảnh y khoa của Mienye và cộng sự, 2025); Swin-T với demo cửa sổ dịch; Stable Diffusion v1.5 (CLIP, U-Net, guidance, DDIM, VAE decoder) với demo khuếch tán 2D. Số tham số của mọi model mới được assert so với torchvision/diffusers. Đường tắt residual vòng lên trên heatmap thay vì cắt ngang.
 
 **Bước tiếp theo, theo thứ tự**
 1. **Giai đoạn 2: CNN thật trên MNIST.**
@@ -88,7 +91,7 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
      - feature map thật trên khối 3D qua các key mới trong `LIVE`.
 2. **GPT tí hon tiếng Việt** (train trên Truyện Kiều): attention và phân bố xác suất thật thay cho bản đồ chơi trong `TOY`/`SAMPLE`.
 3. **Các demo còn lại của Giai đoạn 1:** trục chuẩn hoá (BN/LN/RMSNorm), chia ảnh thành patch cho ViT, receptive field cho ResNet, RoPE, BPE.
-4. **Giai đoạn 3–4:** diffusion, CLIP, MoE, VAE; bản tiếng Anh (`info` → `{ vi, en }`); bài viết; nghiên cứu nhỏ với người dùng (workshop VISxAI).
+4. **Giai đoạn 3–4:** MoE (diffusion, CLIP, VAE đã có trong Stable Diffusion); bản tiếng Anh (`info` → `{ vi, en }`); bài viết; nghiên cứu nhỏ với người dùng (workshop VISxAI).
 
 **Việc nhỏ còn tồn**
 - **`media/demo.gif` đã cũ.** Nên đưa script quay vào repo, ví dụ `scripts/record-demo.mjs`: Playwright `recordVideo`, rồi ffmpeg ra GIF 800px, 8 khung hình/giây, 64 màu, khoảng 3 MB.

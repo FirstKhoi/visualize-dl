@@ -309,3 +309,47 @@ const SAMPLE = (() => {
   console.assert(Math.abs(ex[0] - 0.731) < 1e-3 && Math.abs(ex[1] - 0.269) < 1e-3 && ex[2] === 0, 'top-p example mismatch');
   return { PROMPT, TOKENS, LOGITS, nucleus, draw };
 })();
+
+// Toy diffusion in 2D with Stable Diffusion's noise schedule. Each "image" is a point; the data are four Gaussian clusters,
+// two per prompt. The noise prediction is exact (the posterior mean of the mixture, i.e. what a perfectly trained network
+// would output), so the demo shows the sampler and the guidance, not a learned approximation.
+const DIFF = (() => {
+  const T = 1000, b0 = Math.sqrt(0.00085), b1 = Math.sqrt(0.012), AB = [];
+  for (let i = 0, p = 1; i < T; i++) { p *= 1 - (b0 + (b1 - b0) * i / (T - 1)) ** 2; AB.push(p); }
+  const S = 0.18, PROMPTS = { 'mèo': [[-1, 0.6], [-1, -0.6]], 'chó': [[1, 0.6], [1, -0.6]] };
+  const ALL = Object.values(PROMPTS).flat();
+  // E[x₀ | x_t] for an equal-weight mixture of N(μ, σ²I): responsibilities from x_t ~ N(√ᾱ μ, vI), then each component's mean
+  function x0hat(x, ab, mus, s = S) {
+    const sa = Math.sqrt(ab), v = ab * s * s + 1 - ab, k = sa * s * s / v;
+    const lw = mus.map(m => -((x[0] - sa * m[0]) ** 2 + (x[1] - sa * m[1]) ** 2) / (2 * v)), top = Math.max(...lw);
+    const w = lw.map(l => Math.exp(l - top)), z = w.reduce((a, b) => a + b);
+    return [0, 1].map(d => mus.reduce((t, m, i) => t + w[i] / z * (m[d] + k * (x[d] - sa * m[d])), 0));
+  }
+  const epsOf = (x, x0, ab) => [0, 1].map(d => (x[d] - Math.sqrt(ab) * x0[d]) / Math.sqrt(1 - ab));
+  // classifier-free guidance: ε_u + s (ε_c − ε_u); prompt null = the empty prompt (every cluster)
+  function eps(x, ab, prompt, s) {
+    const u = epsOf(x, x0hat(x, ab, ALL), ab);
+    if (!prompt) return u;
+    const c = epsOf(x, x0hat(x, ab, PROMPTS[prompt]), ab);
+    return [0, 1].map(d => u[d] + s * (c[d] - u[d]));
+  }
+  // DDIM (η = 0): guess the clean point, then re-noise it to the earlier, less noisy time
+  const ddim = (x, e, ab, abPrev) => [0, 1].map(d => Math.sqrt(abPrev) * (x[d] - Math.sqrt(1 - ab) * e[d]) / Math.sqrt(ab) + Math.sqrt(1 - abPrev) * e[d]);
+  const timesteps = N => Array.from({ length: N }, (_, i) => (N - 1 - i) * Math.floor(T / N) + 1); // 50 → 981, 961, …, 1
+  // frames[k] = the points after k steps; frames[0] is the seeded starting noise. The last step goes to ᾱ₀, as diffusers does.
+  function sample({ n = 300, N = 50, prompt = 'mèo', s = 7.5, seed = 3 }) {
+    const g = gauss(rng(seed)), ts = timesteps(N);
+    let pts = Array.from({ length: n }, () => [g(), g()]);
+    const frames = [pts];
+    ts.forEach((t, i) => {
+      const ab = AB[t], abPrev = i + 1 < N ? AB[ts[i + 1]] : AB[0];
+      pts = pts.map(x => ddim(x, eps(x, ab, prompt, s), ab, abPrev));
+      frames.push(pts);
+    });
+    return { frames, ts };
+  }
+  // the closest cluster centre and which prompt it belongs to
+  const nearest = x => Object.entries(PROMPTS).flatMap(([p, ms]) => ms.map(m => ({ prompt: p, d: Math.hypot(x[0] - m[0], x[1] - m[1]) }))).reduce((a, b) => b.d < a.d ? b : a);
+  console.assert(Math.abs(AB[999] - 0.00466) < 1e-5 && timesteps(50)[0] === 981, 'toy diffusion schedule mismatch');
+  return { T, AB, S, PROMPTS, x0hat, epsOf, eps, ddim, timesteps, sample, nearest };
+})();

@@ -439,7 +439,7 @@ image = pipe("a photo of a cat", num_inference_steps=50, guidance_scale=7.5).ima
     formula: [R`z_T \sim \mathcal{N}(0, I)`],
     why: 'Khuếch tán chạy trong không gian latent của VAE (64×64×4) chứ không trên ảnh 512×512×3, nên mỗi bước U-Net rẻ hơn nhiều.',
     code: `latents = torch.randn(1, 4, 64, 64, generator=torch.Generator().manual_seed(0))`
-  }, { tag: 'z_T', size: [0.06, sp(64), sp(64)] }), pos: [-9.6, 0, 0] },
+  }, { tag: 'z_T', size: [0.06, sp(64), sp(64)], live: 'diff', diff: { at: 'start' } }), pos: [-9.6, 0, 0] },
   { ...unet, pos: [-5.0, 0, 0] },
   { ...n('Classifier-free guidance', 'act', '2 × 4×64×64 → 4×64×64', {
     what: 'Mỗi bước, U-Net chạy hai lần (gộp thành một batch 2): một lần với câu mô tả, một lần với câu rỗng. Lấy dự đoán có điều kiện rồi đẩy nó ra xa dự đoán không điều kiện theo hệ số s.',
@@ -456,20 +456,20 @@ noise_pred = eps_u + 7.5 * (eps_c - eps_u)`
     example: R`\(\bar\alpha_{501} = 0.275\), \(\bar\alpha_{481} = 0.302\). Một phần tử \(z_t = 0.8\), \(\hat\varepsilon = 0.5\): \(\hat z_0 = (0.8 - 0.8515 \cdot 0.5) / 0.5244 = 0.714\), rồi \(z_{481} = 0.5498 \cdot 0.714 + 0.8353 \cdot 0.5 = 0.810\).`,
     code: `scheduler.set_timesteps(50)              # t = 981, 961, …, 1
 latents = scheduler.step(noise_pred, t, latents).prev_sample`
-  }, { tag: 'Scheduler', size: [0.6, 1.5, 1.3], ref: [ref('ddim', 'công thức (12), σ = 0'), ref('ddpm')] }), pos: [2.4, 0, 0] },
+  }, { tag: 'Scheduler', size: [0.6, 1.5, 1.3], ref: [ref('ddim', 'công thức (12), σ = 0'), ref('ddpm')], live: 'diff', diff: { at: 'now' } }), pos: [2.4, 0, 0] },
   { ...vae, pos: [6.0, 0, 0] },
   { ...n('Ảnh ra', 'io', '3×512×512', {
     what: 'Output của decoder nằm trong khoảng xấp xỉ [−1, 1]; đưa về [0, 255] để lưu thành ảnh.',
     formula: [R`\text{pixel} = 255 \cdot \mathrm{clip}\Big(\frac{\hat x + 1}{2},\ 0,\ 1\Big)`],
     code: `image = ((image / 2 + 0.5).clamp(0, 1) * 255).round().to(torch.uint8)`
-  }, { tag: 'Ảnh', size: [0.06, sp(512), sp(512)] }), pos: [9.6, 0, 0] }
+  }, { tag: 'Ảnh', size: [0.06, sp(512), sp(512)], live: 'diff', diff: { at: 'end' } }), pos: [9.6, 0, 0] }
 ], links: [
   { a: { i: 0, s: 'r' }, b: { i: 1, s: 'l' } },
   { a: { i: 2, s: 'r' }, b: { i: 3, s: 'l' } },
   { a: { i: 1, s: 'd' }, b: { i: 3, s: 't', off: [-0.5, 0, 0] }, kind: 'cross', label: '77×768' },
   { a: { i: 3, s: 'r' }, b: { i: 4, s: 'l' }, label: 'ε̂ ×2' },
   { a: { i: 4, s: 'r' }, b: { i: 5, s: 'l' } },
-  { a: { i: 5, s: 't' }, b: { i: 3, s: 't', off: [0.6, 0, 0] }, kind: 'loop', label: 'lặp 50 bước, t giảm dần' },
+  { a: { i: 5, s: 'b' }, b: { i: 3, s: 'b', off: [0.6, 0, 0] }, kind: 'loop', label: 'lặp 50 bước, t giảm dần' }, // behind the row: the scheduler's top carries the toy diffusion
   { a: { i: 5, s: 'r' }, b: { i: 6, s: 'l' }, label: 'z₀' },
   { a: { i: 6, s: 'r' }, b: { i: 7, s: 'l' } }
 ] });
