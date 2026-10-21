@@ -1,7 +1,7 @@
 # Giải phẫu mạng nơ-ron · Neural Network Anatomy
 
-Explore eleven neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
-Khám phá mười một kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
+Explore twelve neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
+Khám phá mười hai kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
 
 ![Drilling into the Transformer's attention, then training the MLP lab](media/demo.gif)
 
@@ -27,8 +27,9 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | **Transformer** (Vaswani et al., 2017, base) | Encoder–decoder, post-LN, sinusoidal PE, cross-attention | Self-attention on a toy sentence, with causal mask and √dₖ scaling toggles |
 | **LLaMA 3 8B** | Decoder-only, RMSNorm, RoPE, grouped-query attention, SwiGLU, KV cache, sampling | Masked self-attention on the same toy sentence; next-word sampling with temperature and top-p, and draws you can count |
 | **ViT-B/16** | Patch embedding, [CLS] token, learned positions, pre-LN encoder | – |
-| **Swin-T** (Liu et al., 2021) | Window attention, shifted windows with cyclic shift and mask, relative position bias, patch merging (a Transformer pyramid like a CNN) | Toy 8×8 patch grid: pick a patch and see what it attends to in a regular and a shifted block, how far it reaches after both, and the mask of its rolled window |
+| **Swin-T** (Liu et al., 2021) | Window attention, shifted windows with cyclic shift and mask, relative position bias, patch merging (a Transformer pyramid like a CNN); what Swin V2 changed to scale up (res-post-norm, scaled cosine attention, log-spaced position bias, SimMIM) | Toy 8×8 patch grid: pick a patch and see what it attends to in a regular and a shifted block, how far it reaches after both, and the mask of its rolled window |
 | **ResNet-50** | Stem, bottleneck blocks, BatchNorm, projection shortcuts | Editable 8×8 convolution; gradient through up to 100 layers with and without shortcuts |
+| **ConvNeXt-T** (Liu et al., 2022) | A pure CNN built from Swin's design choices: patchify stem, 1:1:3:1 stages, depthwise 7×7, inverted bottleneck, GELU, LayerNorm, layer scale, separate downsampling; the paper's ResNet-50 → ConvNeXt roadmap with the accuracy after each step; ConvNeXt V2 (GRN, FCMAE) | – |
 | **DenseNet-121** (Huang et al., 2017) | Dense blocks where every layer reads all earlier feature maps, growth rate, transition layers | Editable 8×8 convolution in each dense layer |
 | **EfficientNet-B0** (Tan & Le, 2019) | MBConv (inverted residual), depthwise convolution, squeeze-and-excitation, stochastic depth, compound scaling | Editable 8×8 convolution as one depthwise channel; gradient through shortcuts |
 | **LSTM** (Zaremba et al., 2014) | Gates, cell state, unrolled time steps | Gradient through time: plain RNN vs. the LSTM cell path |
@@ -56,7 +57,7 @@ npm run test:e2e    # the page itself in headless Chromium, offline
 ./build-pages.sh    # rebuilds docs/ (the GitHub Pages copy); commit docs/ with your change
 ```
 
-The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy shifted windows, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, Swin-T, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion's U-Net, CLIP text encoder and VAE decoder, and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
+The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy shifted windows, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion's U-Net, CLIP text encoder and VAE decoder, and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
 
 ### Files
 
@@ -96,8 +97,9 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **Transformer** (2017, base) | Encoder–decoder, Post-LN, PE hình sin, cross-attention | Self-attention trên câu đồ chơi, bật/tắt mặt nạ nhân quả và chia √dₖ |
 | **LLaMA 3 8B** | Chỉ decoder, RMSNorm, RoPE, GQA, SwiGLU, KV cache, lấy mẫu | Attention có mặt nạ trên cùng câu đồ chơi; lấy mẫu từ kế tiếp với nhiệt độ T và top-p, bốc thăm và đếm số lần |
 | **ViT-B/16** | Patch embedding, token [CLS], vị trí học được, encoder Pre-LN | – |
-| **Swin-T** (2021) | Attention trong cửa sổ, cửa sổ dịch bằng cuộn vòng và mặt nạ, bias vị trí tương đối, patch merging (Transformer dựng kim tự tháp như CNN) | Lưới đồ chơi 8×8 patch: chọn một patch để xem nó chú ý tới đâu ở khối thường và khối dịch, sau hai khối lan tới đâu, và mặt nạ của cửa sổ chứa nó sau khi cuộn |
+| **Swin-T** (2021) | Attention trong cửa sổ, cửa sổ dịch bằng cuộn vòng và mặt nạ, bias vị trí tương đối, patch merging (Transformer dựng kim tự tháp như CNN); Swin V2 đổi gì để phóng to (res-post-norm, cosine attention có nhiệt độ, bias vị trí theo toạ độ log, SimMIM) | Lưới đồ chơi 8×8 patch: chọn một patch để xem nó chú ý tới đâu ở khối thường và khối dịch, sau hai khối lan tới đâu, và mặt nạ của cửa sổ chứa nó sau khi cuộn |
 | **ResNet-50** | Stem, khối bottleneck, BatchNorm, đường tắt chiếu | Tích chập 8×8 sửa được; gradient qua tối đa 100 lớp, có và không có đường tắt |
+| **ConvNeXt-T** (2022) | CNN thuần dựng từ các lựa chọn thiết kế của Swin: stem patchify, tỉ lệ tầng 1:1:3:1, depthwise 7×7, cổ chai ngược, GELU, LayerNorm, layer scale, lớp giảm độ phân giải riêng; lộ trình ResNet-50 → ConvNeXt của bài báo với độ chính xác sau từng bước; ConvNeXt V2 (GRN, FCMAE) | – |
 | **DenseNet-121** (2017) | Dense block: mỗi lớp đọc mọi bản đồ đặc trưng trước nó, growth rate, transition layer | Tích chập 8×8 sửa được trong từng lớp dense |
 | **EfficientNet-B0** (2019) | MBConv (cổ chai ngược), conv depthwise, squeeze-and-excitation, stochastic depth, compound scaling | Tích chập 8×8 sửa được như một kênh depthwise; gradient qua đường tắt |
 | **LSTM** (2014) | Các cổng, bộ nhớ c, trải theo thời gian | Gradient đi ngược theo thời gian: RNN thường so với đường c của LSTM |
@@ -118,7 +120,7 @@ npm run test:e2e    # chạy chính trang web trong Chromium headless, không c�
 ./build-pages.sh    # build lại docs/ (bản cho GitHub Pages); commit docs/ cùng thay đổi
 ```
 
-Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net, U-Net, CLIP text encoder và VAE decoder của Stable Diffusion, và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
+Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, U-Net, CLIP text encoder và VAE decoder của Stable Diffusion, và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
 
 Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là file ngắn), rồi thêm thẻ `<script>` vào `index.html`. Test sẽ tự nhận file mới.
 

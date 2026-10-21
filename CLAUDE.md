@@ -1,6 +1,6 @@
 # visualize-dl: Giải phẫu mạng nơ-ron
 
-Trang web 3D (three.js) để khám phá các mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, Swin-T, ResNet-50, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion v1.5 và một lab train MLP ngay trong trang. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
+Trang web 3D (three.js) để khám phá các mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion v1.5 và một lab train MLP ngay trong trang. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
 
 Demo: https://firstkhoi.github.io/visualize-dl/ (GitHub Pages phục vụ `docs/` trên `main`). Chủ repo là sinh viên đang xây portfolio cho hồ sơ thạc sĩ/tiến sĩ MIT. Phần train mô hình bằng PyTorch nên để chủ repo tự viết; Claude lo phần tích hợp vào trang.
 
@@ -79,7 +79,7 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - PR #1: sửa 6 bug của lab; thêm test Node, CI, README song ngữ, LICENSE MIT.
 - PR #2: test e2e; sửa các lỗi nhỏ (▶ sau khi giải xong, điểm cuối đồ thị, `aria-live`, tooltip, tốc độ).
 - PR #3 (merge vào `main` ngày 2026-10-21): bảng `LIVE` và `rng` dùng chung; overfitting trong lab (tập test, nhiễu nhãn, weight decay, mini-batch); demo sampling của LLaMA (nhiệt độ T, top-p, bốc thăm); đã merge `main` (DenseNet-121, EfficientNet-B0); nút "Sao chép" không còn che code; panel không còn cuộn ngang trên điện thoại.
-- Commit thẳng lên `main` (theo yêu cầu chủ repo, 2026-10-19 đến 2026-10-21): DenseNet-121, EfficientNet-B0, hệ số Dice cho U-Net (đối chiếu với bài review CNN ảnh y khoa của Mienye và cộng sự, 2025); Swin-T với demo cửa sổ dịch; Stable Diffusion v1.5 (CLIP, U-Net, guidance, DDIM, VAE decoder) với demo khuếch tán 2D. Số tham số của mọi model mới được assert so với torchvision/diffusers. Đường tắt residual vòng lên trên heatmap thay vì cắt ngang.
+- Commit thẳng lên `main` (theo yêu cầu chủ repo, 2026-10-19 đến 2026-10-21): DenseNet-121, EfficientNet-B0, hệ số Dice cho U-Net (đối chiếu với bài review CNN ảnh y khoa của Mienye và cộng sự, 2025); Swin-T với demo cửa sổ dịch; Stable Diffusion v1.5 (CLIP, U-Net, guidance, DDIM, VAE decoder) với demo khuếch tán 2D; đối chiếu Swin với slide và paper, thêm cách tra bảng bias và khối nổi Swin V2; ConvNeXt-T (lộ trình Bảng 10 từ ResNet-50, khối nổi ConvNeXt V2: GRN, FCMAE). Khối nổi (`float: true`) đặt nhãn phía trên hộp. Số tham số của mọi model mới được assert so với torchvision/diffusers. Đường tắt residual vòng lên trên heatmap thay vì cắt ngang.
 
 **Bước tiếp theo, theo thứ tự**
 1. **Giai đoạn 2: CNN thật trên MNIST.**

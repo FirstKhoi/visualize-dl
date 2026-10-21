@@ -78,6 +78,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 @media (hover: none) { .hint .mouse { display: none; } .hint .touch { display: inline; } }
 
 .tag-anchor { width: 0; height: 0; }
+.tag-anchor.up .tag { top: auto; bottom: 0; } /* floating box: label sits above it, clear of the row */
 .tag { position: absolute; top: 0; left: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 1px; padding: 3px 7px; white-space: nowrap; pointer-events: auto; cursor: pointer;
   font: 500 12px/1.25 var(--f-ui); color: var(--fg); background: color-mix(in srgb, var(--surface) 84%, transparent); border: 1px solid var(--line); border-radius: 6px; }
 .tag b { font: 500 11px var(--f-mono); color: var(--muted); }
@@ -289,6 +290,7 @@ window.MathJax = {
 <script src="models/vit.js"></script>
 <script src="models/swin.js"></script>
 <script src="models/resnet.js"></script>
+<script src="models/convnext.js"></script>
 <script src="models/densenet.js"></script>
 <script src="models/efficientnet.js"></script>
 <script src="models/lstm.js"></script>
@@ -346,7 +348,7 @@ function readTheme() {
 const sizeOf = nd => nd.size || (SLABS.has(nd.cat) ? SLAB : [1.2, 1.5, 1.3]);
 const track = (o, m) => { m.userData.base = m.opacity; m.userData.dw = m.depthWrite; o.mats.push(m); return m; };
 
-function makeItem(it, stagger, base) {
+function makeItem(it, stagger, base, up) {
   const nd = it.node, col = theme.cat(nd.cat);
   const ball = nd.size === BALL;
   const geo = ball ? new THREE.SphereGeometry(it.half.x, 32, 16) : new THREE.BoxGeometry(it.size.x, it.size.y, it.size.z);
@@ -371,13 +373,13 @@ function makeItem(it, stagger, base) {
   // box = output tensor, so the label shows the output shape; lshape overrides it ('' hides it)
   const lshape = nd.lshape ?? (nd.shape && !(SLABS.has(nd.cat) && !nd.children) ? nd.shape.split('→').pop().trim() : '');
   it.el = document.createElement('div');
-  it.el.className = 'tag-anchor';
+  it.el.className = 'tag-anchor' + (up ? ' up' : '');
   it.el.innerHTML = `<button class="tag" type="button" tabindex="-1"><span>${nd.tag || nd.name}${nd.repeat > 1 ? ` <b>×${nd.repeat}</b>` : ''}</span>`
     + (lshape ? `<small>${lshape}</small>` : '')
     + (nd.children ? `<em>▸ ${nd.hint || nd.children.length + ' phần'}</em>` : '') + '</button>';
   it.el.firstChild.addEventListener('click', () => pick(it));
   const label = new CSS2DObject(it.el);
-  label.position.set(0, base - 0.25 - (stagger && it.i % 2 ? 1.3 : 0), 0);
+  label.position.set(0, up ? base + 0.25 : base - 0.25 - (stagger && it.i % 2 ? 1.3 : 0), 0);
   it.root.add(label);
   if (nd.live) { // the step's real matrix floats above the block, always facing the camera
     const canvas = document.createElement('canvas');
@@ -466,7 +468,12 @@ function buildLevel(node) {
   }
   const row = node.layout !== 'manual', stagger = row && items.length > 7; // dense rows: alternate label heights so they don't overlap
   const rowBottom = -Math.max(...items.filter(it => !it.node.float).map(it => it.size.y / 2)); // row labels share one baseline
-  items.forEach(it => { it.half = it.size.clone().multiplyScalar(0.5); makeItem(it, stagger, row && !it.node.float ? rowBottom : -it.half.y); group.add(it.root); });
+  items.forEach(it => {
+    it.half = it.size.clone().multiplyScalar(0.5);
+    const up = row && !!it.node.float;
+    makeItem(it, stagger, up ? it.half.y : row ? rowBottom : -it.half.y, up);
+    group.add(it.root);
+  });
   const links = linksOf(node, items).map(l => makeLink(l, items));
   links.forEach(l => group.add(l.root));
   const bbox = new THREE.Box3();
@@ -791,7 +798,7 @@ function swinOut() {
     + `<span>${k > 1 ? `Sau khi cuộn, cửa sổ chứa nó gom ${k} vùng vốn không kề nhau trong lưới gốc, nên mặt nạ chỉ cho ${ok} trong ${n * n} cặp chú ý tới nhau (ô màu); các cặp còn lại bị cộng −∞.` : 'Sau khi cuộn, cửa sổ chứa nó là một vùng liền trong lưới gốc, nên không cần mặt nạ.'}</span></p>`;
 }
 const swinSection = () => `<section class="live swin"><h3>Số chạy thật</h3>
-  <p class="kids-hint">Lưới đồ chơi ${SWIN.G}×${SWIN.G} patch, cửa sổ ${SWIN.M}×${SWIN.M}, dịch ${SWIN.S} (Swin-T thật ở tầng 1: 56×56 patch, cửa sổ 7×7, dịch 3). Mỗi màu là một cửa sổ. Bấm một patch: ô đậm là những patch nó được chú ý tới. Heatmap 3D trên khối cũng đổi theo.</p>
+  <p class="kids-hint">Lưới đồ chơi ${SWIN.G}×${SWIN.G} patch, cửa sổ ${SWIN.M}×${SWIN.M}, dịch ${SWIN.S} (Swin-T thật ở tầng 1: 56×56 patch, cửa sổ 7×7, dịch 3). Mỗi màu là một cửa sổ. Ở lưới này attention trong cửa sổ chỉ so ${(SWIN.G / SWIN.M) ** 2} × ${SWIN.M ** 4} = ${(SWIN.G / SWIN.M) ** 2 * SWIN.M ** 4} cặp patch, còn attention toàn cục phải so ${SWIN.G ** 4}. Bấm một patch: ô đậm là những patch nó được chú ý tới. Heatmap 3D trên khối cũng đổi theo.</p>
   <div class="swin-out">${swinOut()}</div></section>`;
 function refreshSwin() {
   const box = panel.querySelector('.swin-out');

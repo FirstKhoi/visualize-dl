@@ -26,9 +26,10 @@ function windowAttention(C, h, H, shifted) {
     }, { tag: '÷ √d', size: SLAB }),
     n('Bias vị trí tương đối B', 'embed', `${nW}×${h}×${T}×${T}`, {
       what: R`Cộng vào điểm của cặp token \((i, j)\) một số chỉ phụ thuộc độ lệch vị trí giữa chúng trong cửa sổ. Độ lệch mỗi chiều nằm trong \([-${M - 1}, ${M - 1}]\), nên mỗi đầu chỉ cần một bảng \(${2 * M - 1} \times ${2 * M - 1} = ${(2 * M - 1) ** 2}\) số.`,
-      formula: [R`B_{ij} = \hat B\big[r_i - r_j + ${M - 1},\ c_i - c_j + ${M - 1}\big]`, R`\hat B \in \mathbb{R}^{${2 * M - 1} \times ${2 * M - 1}}`, R`\mathrm{Attention} = \mathrm{softmax}\big(QK^\top / \sqrt{d} + B\big)V`],
-      why: 'Swin không cộng vector vị trí vào token như ViT. Vị trí chỉ đi vào qua bias này, và vì bias phụ thuộc độ lệch chứ không phụ thuộc vị trí tuyệt đối, một cặp "cách nhau 2 hàng, 5 cột" được đối xử như nhau ở mọi chỗ trong ảnh: đúng giả định dịch chuyển của CNN mà ViT bỏ đi. Bảng 4 của bài gốc: không có thông tin vị trí 80.1% top-1, PE tuyệt đối như ViT 80.5%, bias tương đối 81.3%.',
-      example: R`Token \(i\) ở ô \((0, 0)\) và token \(j\) ở ô \((2, 5)\) của cửa sổ: \(B_{ij} = \hat B[0 - 2 + 6,\ 0 - 5 + 6] = \hat B[4, 1]\). Cặp ở \((3, 1)\) và \((5, 6)\) cũng lệch \((-2, -5)\), nên dùng đúng ô đó.`,
+      formula: [R`B_{ij} = \hat B\big[r_i - r_j + ${M - 1},\ c_i - c_j + ${M - 1}\big]`, R`\hat B \in \mathbb{R}^{${2 * M - 1} \times ${2 * M - 1}}`,
+        R`\text{idx} = (\Delta r + ${M - 1})\cdot ${2 * M - 1} + (\Delta c + ${M - 1}) \in \{0, \dots, ${(2 * M - 1) ** 2 - 1}\}`, R`\mathrm{Attention} = \mathrm{softmax}\big(QK^\top / \sqrt{d} + B\big)V`],
+      why: `Swin không cộng vector vị trí vào token như ViT. Vị trí chỉ đi vào qua bias này, và vì bias phụ thuộc độ lệch chứ không phụ thuộc vị trí tuyệt đối, một cặp "cách nhau 2 hàng, 5 cột" được đối xử như nhau ở mọi chỗ trong ảnh: đúng giả định dịch chuyển của CNN mà ViT bỏ đi. Bảng 4 của bài gốc: không có thông tin vị trí 80.1% top-1, PE tuyệt đối như ViT 80.5%, bias tương đối 81.3%. Vì sao là bảng mà không học thẳng ma trận B? B cỡ ${T} × ${T} = ${fmt(T * T)} số mỗi đầu, và hai cặp cùng độ lệch lại có hai tham số riêng; bảng chỉ ${(2 * M - 1) ** 2} số, dùng chung cho mọi cửa sổ (mỗi đầu một bảng). Điểm yếu: bảng gắn chặt với cỡ cửa sổ 7. Muốn dùng cửa sổ lớn hơn cho ảnh lớn hơn thì phải nội suy bảng, và độ chính xác tụt mạnh: Swin V2 thay bảng bằng một MLP nhỏ (Log-CPB).`,
+      example: R`Token \(i\) ở ô \((0, 0)\) và token \(j\) ở ô \((2, 5)\) của cửa sổ: \(B_{ij} = \hat B[0 - 2 + 6,\ 0 - 5 + 6] = \hat B[4, 1]\). Cặp ở \((3, 1)\) và \((5, 6)\) cũng lệch \((-2, -5)\), nên dùng đúng ô đó. Trong code, ô này là hàng \(\text{idx} = 4 \cdot 13 + 1 = 53\) của relative_position_bias_table.`,
       params: R`\(${(2 * M - 1) ** 2} \times ${h} = ${fmt((2 * M - 1) ** 2 * h)}\) cho mỗi khối.`,
       code: `bias = self.relative_position_bias_table[self.relative_position_index]   # (${T}·${T}, ${h})
 scores = scores + bias.view(${T}, ${T}, ${h}).permute(2, 0, 1)`
@@ -182,6 +183,47 @@ function stage(k, C, h, H, L) {
   ] });
 }
 
+// Swin V2: what changed to scale Swin up (floats above the row: not a step of Swin-T's forward pass)
+const swinV2 = n('Swin V2 (2022): sửa gì', 'block', 'các thay đổi so với Swin V1', {
+  what: 'Swin V2 giữ nguyên khung của Swin (cửa sổ, cửa sổ dịch, patch merging) nhưng sửa ba chỗ để phóng to được lên 3 tỷ tham số và ảnh 1536×1536: đặt LayerNorm sau nhánh residual, đổi tích vô hướng thành cosine có nhiệt độ, và thay bảng bias bằng một mạng nhỏ trên toạ độ log. Thêm SimMIM để bớt phụ thuộc dữ liệu có nhãn. Khối này không nằm trong Swin-T ở hàng dưới; nó chỉ ra những gì V2 thay.',
+  formula: [R`\text{V1: } x_{l+1} = x_l + F\big(\mathrm{LN}(x_l)\big)`, R`\text{V2: } x_{l+1} = x_l + \mathrm{LN}\big(F(x_l)\big)`, R`\text{V2: } \mathrm{Sim}(q_i, k_j) = \cos(q_i, k_j) / \tau + B_{ij}`],
+  why: 'Ba rào cản khi phóng to: train mất ổn định (activation ở lớp sâu phình to), khoảng cách độ phân giải (train ở ảnh nhỏ, dùng ở ảnh lớn thì tụt độ chính xác), và đói dữ liệu có nhãn. Mỗi thay đổi nhắm vào một rào cản.',
+  example: 'SwinV2-G có 3 tỷ tham số, train với 70 triệu ảnh có nhãn, ít hơn 40 lần so với JFT-3B mà các mô hình cùng cỡ trước đó dùng.',
+  code: `from torchvision.models import swin_v2_t
+model = swin_v2_t(weights="IMAGENET1K_V1").eval()`
+}, { tag: 'Swin V2', float: true, hint: '4 phần', size: [1.2, 1.2, 1.0], ref: [ref('swinv2')], children: [
+  n('Res-post-norm', 'norm', 'đổi chỗ LayerNorm', {
+    what: 'V1 chuẩn hoá đầu vào của nhánh (pre-norm) rồi cộng thẳng output của nhánh vào dòng chính. V2 chuẩn hoá output của nhánh trước khi cộng.',
+    formula: [R`\text{V1: } x_{l+1} = x_l + F\big(\mathrm{LN}(x_l)\big)`, R`\text{V2: } x_{l+1} = x_l + \mathrm{LN}\big(F(x_l)\big)`],
+    why: 'Với pre-norm, output của nhánh không bị giới hạn nên biên độ của dòng chính cứ cộng dồn qua từng khối: ở lớp sâu nó lớn hơn hẳn ở lớp đầu, và chênh lệch đó càng lớn khi mô hình càng lớn, làm train mất ổn định. Chuẩn hoá output trước khi cộng thì mỗi khối chỉ thêm một lượng cỡ 1. Với mô hình rất lớn (SwinV2-H, -G), V2 còn thêm một LayerNorm trên dòng chính sau mỗi 6 khối.',
+    code: `x = x + self.norm1(self.attn(x))   # V2: norm after the branch
+x = x + self.norm2(self.mlp(x))`
+  }, { tag: 'Post-norm', size: SLAB }),
+  n('Scaled cosine attention', 'attn', 'thay QKᵀ/√d', {
+    what: R`Điểm của cặp \((i, j)\) là cosine của góc giữa query và key, chia cho nhiệt độ \(\tau\) học được (riêng cho từng đầu và từng lớp, luôn lớn hơn 0.01), rồi cộng bias vị trí.`,
+    formula: [R`\mathrm{Sim}(q_i, k_j) = \frac{\cos(q_i, k_j)}{\tau} + B_{ij}, \qquad \tau > 0.01`],
+    why: R`Tích vô hướng tăng theo \(\|q\|\,\|k\|\): ở mô hình lớn, vài cặp có điểm rất lớn, softmax gần như dồn hết vào một token và gradient qua nó gần bằng 0. Cosine luôn nằm trong \([-1, 1]\), nên điểm chỉ phụ thuộc hướng của vector; \(\tau\) cho mỗi đầu tự chọn độ nhọn.`,
+    example: R`Với \(\tau = 0.01\), điểm nằm trong \([-100, 100]\); với \(\tau = 1\), trong \([-1, 1]\): softmax gần như phẳng.`,
+    code: `attn = F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1)
+attn = attn * torch.clamp(self.logit_scale, max=math.log(100.0)).exp() + bias   # logit_scale = log(1 / τ)`
+  }, { tag: 'Cosine attn', size: [1.2, 1.3, 1.3] }),
+  n('Log-CPB', 'embed', 'thay bảng bias', {
+    what: R`Thay bảng \(13 \times 13\) bằng một MLP nhỏ (hai lớp, ReLU ở giữa) nhận độ lệch \((\Delta x, \Delta y)\) và trả về bias. Độ lệch được đưa qua thang log trước.`,
+    formula: [R`B(\Delta x, \Delta y) = G\big(\widehat{\Delta x}, \widehat{\Delta y}\big), \qquad \widehat{\Delta x} = \mathrm{sign}(\Delta x) \cdot \log(1 + |\Delta x|)`],
+    why: 'Bảng của V1 chỉ có giá trị cho đúng các độ lệch đã thấy khi train; đổi cỡ cửa sổ thì phải nội suy. MLP cho ra bias cho độ lệch bất kỳ, và thang log làm vùng phải ngoại suy hẹp lại.',
+    example: R`Từ cửa sổ 8×8 sang 16×16: toạ độ thường đi từ \([-7, 7]\) lên \([-15, 15]\), phải ngoại suy thêm \(8/7 = 1.14\) lần; toạ độ log đi từ \([-2.079, 2.079]\) lên \([-2.773, 2.773]\), chỉ thêm 0.33 lần. Bảng 1 của bài: đem mô hình train ở cửa sổ 8 (ảnh 256) đi chạy ở cửa sổ 24 (ảnh 768) mà không fine-tune, bảng bias của V1 tụt từ 81.7% xuống 68.7%, Log-CPB chỉ từ 81.8% xuống 79.1%.`,
+    code: `coords = torch.sign(coords) * torch.log2(coords.abs() + 1.0) / 3.0   # torchvision: log2, scaled to about [-1, 1]
+bias = 16 * torch.sigmoid(self.cpb_mlp(coords))   # cpb_mlp: Linear(2, 512), ReLU, Linear(512, heads)`
+  }, { tag: 'Log-CPB', size: SLAB }),
+  n('SimMIM', 'io', 'train trước không cần nhãn', {
+    what: 'Học tự giám sát bằng cách che ảnh: che ngẫu nhiên các mảng của ảnh, rồi bắt mạng dự đoán lại giá trị pixel ở chỗ bị che, bằng loss ℓ1 và một lớp dự đoán rất nhẹ. Sau đó mới fine-tune với nhãn.',
+    formula: [R`\mathcal{L} = \frac{1}{|\Omega|} \sum_{p \in \Omega} \big| \hat x_p - x_p \big|, \qquad \Omega = \text{các pixel bị che}`],
+    why: 'Mô hình càng lớn càng cần nhiều dữ liệu có nhãn. Dự đoán phần bị che không cần nhãn, nên mô hình học được biểu diễn tốt từ ảnh thô; nhờ vậy SwinV2-G chỉ cần 70 triệu ảnh có nhãn. ConvNeXt V2 dùng cùng ý tưởng cho CNN (FCMAE).',
+    code: `x_rec = decoder(encoder(mask(x)))
+loss = (x_rec - x).abs()[masked].mean()`
+  }, { tag: 'SimMIM', size: [0.6, 1.4, 0.6], ref: [ref('simmim')] })
+] });
+
 const STAGES = [stage(1, 96, 3, 56, 2), stage(2, 192, 6, 28, 2), stage(3, 384, 12, 14, 6), stage(4, 768, 24, 7, 2)];
 const pEmbed = 96 * 3 * 4 * 4 + 96 + 2 * 96, pTotal = pEmbed + STAGES.reduce((t, s) => t + s._p, 0) + 2 * 768 + 768 * 1000 + 1000;
 // self-check: must reproduce torchvision's swin_t parameter count
@@ -222,6 +264,7 @@ probs = model(x).softmax(-1)   # x: (B, 3, 224, 224) → (B, 1000)`
   ...STAGES,
   { ...layerNorm('7×7', 768), name: 'LayerNorm cuối' },
   gapNode(768, 7, 'Không có tham số. ViT lấy token [CLS] để phân loại; Swin không có [CLS] mà lấy trung bình 49 token cuối, như ResNet.'),
-  fcOut(768, 'head')
+  fcOut(768, 'head'),
+  swinV2
 ] });
 })();
