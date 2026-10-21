@@ -117,9 +117,13 @@ test('the seeded random streams behind the data, the weights and the gradient ex
   // values recorded before live.js shared one generator between TRAIN and GRAD
   const get = loadPage(), GRAD = get('GRAD');
   const res = GRAD.res({ L: 50, sigma: 0.9, beta: 0.2 }), rnn = GRAD.rnn({ T: 50, sigma: 1, f: 0.95 });
-  assert.deepEqual([res.plain[50], res.skip[50], rnn.plain[50], rnn.skip[50]], [0.014397718411632234, 2.942327557205068, 7.283670163079123e-9, 0.07694497527671315]);
+  // to 12 significant digits: Math.cos and friends differ in the last bit between platforms (macOS vs the Linux CI),
+  // while any change to a seeded stream moves these numbers in the first digits
+  const same = (got, want) => got.forEach((g, i) => assert.ok(Math.abs(g - want[i]) <= 1e-12 * Math.abs(want[i]), `[${i}] ${g} ≠ ${want[i]}`));
+  same([res.plain[50], res.skip[50], rnn.plain[50], rnn.skip[50]], [0.014397718411632234, 2.942327557205068, 7.283670163079123e-9, 0.07694497527671315]);
   const net = TRAIN.init(8, 1), D = TRAIN.makeData('Vòng tròn');
-  assert.deepEqual([net.W[0][1][3], net.W[2][7][1], ...D.X[17], D.Y[17]], [-0.2652991106673534, 0.725164236353931, 0.17346276161200289, 0.37538646178269686, 1]);
+  same([net.W[0][1][3], net.W[2][7][1], ...D.X[17]], [-0.2652991106673534, 0.725164236353931, 0.17346276161200289, 0.37538646178269686]);
+  assert.equal(D.Y[17], 1);
 });
 
 // ---------- overfitting: a test set, label noise, weight decay, mini-batches ----------
