@@ -53,6 +53,8 @@ const PAPER = {
   heinit: ['He và cộng sự (2015), Delving Deep into Rectifiers (khởi tạo He)', 'https://arxiv.org/abs/1502.01852'],
   momentum: ['Sutskever và cộng sự (2013), On the importance of initialization and momentum in deep learning', 'https://proceedings.mlr.press/v28/sutskever13.html'],
   playground: ['Smilkov & Carter, TensorFlow Playground (ý tưởng gốc của phòng thí nghiệm này)', 'https://playground.tensorflow.org/'],
+  adamw: ['Loshchilov & Hutter (2019), Decoupled Weight Decay Regularization', 'https://arxiv.org/abs/1711.05101'],
+  dlbook: ['Goodfellow, Bengio & Courville (2016), Deep Learning, chương 7: Regularization', 'https://www.deeplearningbook.org/contents/regularization.html'],
   densenet: ['Huang, Liu, van der Maaten & Weinberger (2017), Densely Connected Convolutional Networks', 'https://arxiv.org/abs/1608.06993'],
   efficientnet: ['Tan & Le (2019), EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks', 'https://arxiv.org/abs/1905.11946'],
   mobilenet: ['Howard và cộng sự (2017), MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications', 'https://arxiv.org/abs/1704.04861'],

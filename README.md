@@ -25,7 +25,7 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | Model | What you see | Runs in the page |
 |---|---|---|
 | **Transformer** (Vaswani et al., 2017, base) | Encoder–decoder, post-LN, sinusoidal PE, cross-attention | Self-attention on a toy sentence, with causal mask and √dₖ scaling toggles |
-| **LLaMA 3 8B** | Decoder-only, RMSNorm, RoPE, grouped-query attention, SwiGLU, KV cache, sampling | Masked self-attention on the same toy sentence |
+| **LLaMA 3 8B** | Decoder-only, RMSNorm, RoPE, grouped-query attention, SwiGLU, KV cache, sampling | Masked self-attention on the same toy sentence; next-word sampling with temperature and top-p, and draws you can count |
 | **ViT-B/16** | Patch embedding, [CLS] token, learned positions, pre-LN encoder | – |
 | **Swin-T** (Liu et al., 2021) | Window attention, shifted windows with cyclic shift and mask, relative position bias, patch merging (a Transformer pyramid like a CNN) | Toy 8×8 patch grid: pick a patch and see what it attends to in a regular and a shifted block, how far it reaches after both, and the mask of its rolled window |
 | **ResNet-50** | Stem, bottleneck blocks, BatchNorm, projection shortcuts | Editable 8×8 convolution; gradient through up to 100 layers with and without shortcuts |
@@ -34,7 +34,7 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | **LSTM** (Zaremba et al., 2014) | Gates, cell state, unrolled time steps | Gradient through time: plain RNN vs. the LSTM cell path |
 | **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop, Dice score | Unpadded 8×8 convolution |
 | **Stable Diffusion v1.5** (Rombach et al., 2022) | CLIP text encoder, the noise-predicting U-Net (ResBlocks with timestep embedding, GroupNorm, self- and cross-attention, GEGLU), classifier-free guidance, the DDIM step and its 50-step loop, the VAE decoder | – |
-| **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, decision boundary, loss curve, advice read from the curve, real weight matrices painted on the 3D blocks |
+| **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, full batch or mini-batches, label noise, weight decay, a held-out test set with train/test loss curves, decision boundary, advice read from the curves (including overfitting), real weight matrices painted on the 3D blocks |
 
 The attention and convolution demos use small hand-picked inputs so every number can be read. Only the training lab learns its weights.
 
@@ -73,7 +73,7 @@ To add a model, create `models/<name>.js` (see `models/vit.js` for a short one) 
 
 ### Roadmap
 
-1. Demos for missing ideas: sampling temperature and top-p, overfitting in the lab, normalisation axes, ViT patches, receptive fields, RoPE, BPE.
+1. Demos for missing ideas: normalisation axes, ViT patches, receptive fields, RoPE, BPE.
 2. Real trained models in the browser: a small CNN on MNIST where you draw a digit, and a tiny Vietnamese GPT trained on *Truyện Kiều*.
 3. New architectures built from existing blocks: diffusion, CLIP, mixture of experts, VAE.
 4. English content.
@@ -94,7 +94,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | Mạng | Nội dung | Chạy thật trong trang |
 |---|---|---|
 | **Transformer** (2017, base) | Encoder–decoder, Post-LN, PE hình sin, cross-attention | Self-attention trên câu đồ chơi, bật/tắt mặt nạ nhân quả và chia √dₖ |
-| **LLaMA 3 8B** | Chỉ decoder, RMSNorm, RoPE, GQA, SwiGLU, KV cache, lấy mẫu | Attention có mặt nạ trên cùng câu đồ chơi |
+| **LLaMA 3 8B** | Chỉ decoder, RMSNorm, RoPE, GQA, SwiGLU, KV cache, lấy mẫu | Attention có mặt nạ trên cùng câu đồ chơi; lấy mẫu từ kế tiếp với nhiệt độ T và top-p, bốc thăm và đếm số lần |
 | **ViT-B/16** | Patch embedding, token [CLS], vị trí học được, encoder Pre-LN | – |
 | **Swin-T** (2021) | Attention trong cửa sổ, cửa sổ dịch bằng cuộn vòng và mặt nạ, bias vị trí tương đối, patch merging (Transformer dựng kim tự tháp như CNN) | Lưới đồ chơi 8×8 patch: chọn một patch để xem nó chú ý tới đâu ở khối thường và khối dịch, sau hai khối lan tới đâu, và mặt nạ của cửa sổ chứa nó sau khi cuộn |
 | **ResNet-50** | Stem, khối bottleneck, BatchNorm, đường tắt chiếu | Tích chập 8×8 sửa được; gradient qua tối đa 100 lớp, có và không có đường tắt |
@@ -103,7 +103,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **LSTM** (2014) | Các cổng, bộ nhớ c, trải theo thời gian | Gradient đi ngược theo thời gian: RNN thường so với đường c của LSTM |
 | **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối, hệ số Dice | Tích chập 8×8 không đệm |
 | **Stable Diffusion v1.5** (2022) | CLIP text encoder, U-Net đoán nhiễu (ResBlock có nhúng bước t, GroupNorm, self-attention và cross-attention, GEGLU), classifier-free guidance, bước DDIM và vòng lặp 50 bước, VAE decoder | – |
-| **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, ranh giới quyết định, đường loss, lời khuyên đọc từ đường loss, ma trận trọng số thật tô lên khối 3D |
+| **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, full batch hoặc mini-batch, nhiễu nhãn, weight decay, tập test riêng với đường loss train/test, ranh giới quyết định, lời khuyên đọc từ đường loss (kể cả overfitting), ma trận trọng số thật tô lên khối 3D |
 
 Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc được từng con số. Chỉ phòng thí nghiệm huấn luyện là học trọng số thật.
 
