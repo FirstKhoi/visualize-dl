@@ -64,7 +64,15 @@ const PAPER = {
   mienye: ['Mienye và cộng sự (2025), Deep Convolutional Neural Networks in Medical Image Analysis: A Review', 'https://doi.org/10.3390/info16030195'],
   swin: ['Liu và cộng sự (2021), Swin Transformer: Hierarchical Vision Transformer using Shifted Windows', 'https://arxiv.org/abs/2103.14030'],
   swinunet: ['Cao và cộng sự (2021), Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation', 'https://arxiv.org/abs/2105.05537'],
-  swinunetr: ['Hatamizadeh và cộng sự (2022), Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images', 'https://arxiv.org/abs/2201.01266']
+  swinunetr: ['Hatamizadeh và cộng sự (2022), Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images', 'https://arxiv.org/abs/2201.01266'],
+  ldm: ['Rombach và cộng sự (2022), High-Resolution Image Synthesis with Latent Diffusion Models', 'https://arxiv.org/abs/2112.10752'],
+  ddpm: ['Ho, Jain & Abbeel (2020), Denoising Diffusion Probabilistic Models', 'https://arxiv.org/abs/2006.11239'],
+  ddim: ['Song, Meng & Ermon (2020), Denoising Diffusion Implicit Models', 'https://arxiv.org/abs/2010.02502'],
+  cfg: ['Ho & Salimans (2022), Classifier-Free Diffusion Guidance', 'https://arxiv.org/abs/2207.12598'],
+  clip: ['Radford và cộng sự (2021), Learning Transferable Visual Models From Natural Language Supervision (CLIP)', 'https://arxiv.org/abs/2103.00020'],
+  vae: ['Kingma & Welling (2013), Auto-Encoding Variational Bayes', 'https://arxiv.org/abs/1312.6114'],
+  groupnorm: ['Wu & He (2018), Group Normalization', 'https://arxiv.org/abs/1803.08494'],
+  sd15: ['Model card Stable Diffusion v1.5 (Hugging Face)', 'https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5']
 };
 const ref = (key, note) => ({ t: PAPER[key][0], u: PAPER[key][1], note });
 
@@ -77,22 +85,25 @@ const CONCEPTS = {
   'Query, key, value': ['Chiếu Q, K, V', 'Q·Kᵀ', 'KV cache'],
   'Mặt nạ': ['Mặt nạ'],
   'Softmax': ['Softmax', 'FC 1000 + Softmax', 'Softmax + Cross-entropy'],
-  'Chuẩn hoá': ['LayerNorm', 'LayerNorm cuối', 'RMSNorm', 'RMSNorm cuối', 'BatchNorm'],
-  'Hàm kích hoạt': ['ReLU', 'GELU', 'SiLU', 'Sigmoid', 'tanh(cₜ)', 'Kích hoạt 1', 'Kích hoạt 2'],
+  'Chuẩn hoá': ['LayerNorm', 'LayerNorm cuối', 'RMSNorm', 'RMSNorm cuối', 'BatchNorm', 'GroupNorm'],
+  'Hàm kích hoạt': ['ReLU', 'GELU', 'SiLU', 'Sigmoid', 'Quick GELU', 'tanh(cₜ)', 'Kích hoạt 1', 'Kích hoạt 2'],
   'Cổng (gating)': ['Cổng quên f', 'Cổng vào i', 'Cổng ra o', 'Nhân cổng ⊙', 'Quên bớt: f ⊙ cₜ₋₁', 'Ghi mới: i ⊙ g', 'Output hₜ = o ⊙ tanh(cₜ)', 'Squeeze-and-Excitation', 'Nhân theo kênh ⊙'],
-  'Khối feed-forward': ['Feed-Forward', 'MLP', 'SwiGLU FFN'],
-  'Lớp Linear (kể cả conv 1×1)': ['Linear 2 → H', 'Linear H → H', 'Linear H → 2', 'Linear 512 → 2048', 'Linear 2048 → 512', 'Linear 768 → 3072', 'Linear 3072 → 768', 'Nhánh cổng W_gate', 'Nhánh giá trị W_up', 'Nhánh xuống W_down', 'Chiếu ra Wᴼ', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)', 'Conv 1×1 → 4k = 128', 'Conv 1×1 nén ×0.5', 'Conv 1×1 mở rộng ×6', 'Conv 1×1 chiếu (không kích hoạt)', 'Conv 1×1 → 1280', 'FC giảm (Conv 1×1)', 'FC tăng (Conv 1×1)', 'Linear 96 → 384', 'Linear 384 → 96', 'Linear 384 → 192', 'Linear 768 → 384', 'Linear 1536 → 768'],
-  'Embedding': ['Token Embedding', 'Embedding', 'Embedding nguồn + Vị trí', 'Embedding đích + Vị trí', 'Patch Embedding'],
-  'Mã hoá vị trí': ['Positional Encoding', 'RoPE', 'Cộng vị trí (PE học được)', 'Bias vị trí tương đối B'],
+  'Khối feed-forward': ['Feed-Forward', 'MLP', 'SwiGLU FFN', 'Feed-Forward GEGLU'],
+  'Lớp Linear (kể cả conv 1×1)': ['Linear 2 → H', 'Linear H → H', 'Linear H → 2', 'Linear 512 → 2048', 'Linear 2048 → 512', 'Linear 768 → 3072', 'Linear 3072 → 768', 'Nhánh cổng W_gate', 'Nhánh giá trị W_up', 'Nhánh xuống W_down', 'Chiếu ra Wᴼ', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)', 'Conv 1×1 → 4k = 128', 'Conv 1×1 nén ×0.5', 'Conv 1×1 mở rộng ×6', 'Conv 1×1 chiếu (không kích hoạt)', 'Conv 1×1 → 1280', 'FC giảm (Conv 1×1)', 'FC tăng (Conv 1×1)', 'Linear 96 → 384', 'Linear 384 → 96', 'Linear 384 → 192', 'Linear 768 → 384', 'Linear 1536 → 768', 'Linear 320 → 1280', 'Linear 1280 → 1280'],
+  'Embedding': ['Nhúng bước thời gian t', 'Token Embedding', 'Embedding', 'Embedding nguồn + Vị trí', 'Embedding đích + Vị trí', 'Patch Embedding'],
+  'Mã hoá vị trí': ['Positional Encoding', 'RoPE', 'Cộng vị trí (PE học được)', 'Bias vị trí tương đối B', 'Sinusoid của t'],
   'Giảm độ phân giải (kim tự tháp)': ['Patch Merging', 'MaxPool 3×3, bước 2', 'MaxPool 2×2, bước 2', 'AvgPool 2×2, bước 2', 'Conv 3×3, bước 2', 'Depthwise 3×3, bước 2', 'Depthwise 5×5, bước 2'],
   'Tích chập': ['Conv 3×3', 'Conv 3×3, bước 2', 'Conv 3×3 (không đệm)', 'Conv 7×7, 64 kênh, bước 2', 'Conv 16×16, bước 16', 'Up-conv 2×2, bước 2', 'Đường tắt: Conv 1×1 + BN', 'Đường tắt: Conv 1×1 bước 2 + BN', 'Conv 1×1 (nén kênh)', 'Conv 1×1 (mở rộng kênh)', 'Conv 1×1 → 2 lớp',
-    'Conv 1×1 → 4k = 128', 'Conv 3×3 → k = 32', 'Conv 1×1 nén ×0.5', 'Conv 1×1 mở rộng ×6', 'Depthwise 3×3', 'Depthwise 3×3, bước 2', 'Depthwise 5×5', 'Depthwise 5×5, bước 2', 'Conv 1×1 chiếu (không kích hoạt)', 'Conv 1×1 → 1280', 'Conv 4×4, bước 4'],
+    'Conv 1×1 → 4k = 128', 'Conv 3×3 → k = 32', 'Conv 1×1 nén ×0.5', 'Conv 1×1 mở rộng ×6', 'Depthwise 3×3', 'Depthwise 3×3, bước 2', 'Depthwise 5×5', 'Depthwise 5×5, bước 2', 'Conv 1×1 chiếu (không kích hoạt)', 'Conv 1×1 → 1280', 'Conv 4×4, bước 4', 'Conv 3×3 vào', 'Conv 3×3 ra', 'Phóng to ×2 + Conv 3×3', 'Đường tắt: Conv 1×1'],
+  'Phóng to (upsampling)': ['Up-conv 2×2, bước 2', 'Phóng to ×2 + Conv 3×3'],
+  'Khung chữ U (nối tắt mã hoá – giải mã)': ['U-Net (2015)', 'U-Net dự đoán nhiễu'],
+  'Khối residual tích chập': ['Bottleneck (identity)', 'Bottleneck đầu (projection)', 'ResBlock'],
   'Pooling': ['MaxPool 3×3, bước 2', 'MaxPool 2×2, bước 2', 'AvgPool 2×2, bước 2', 'Global Average Pooling'],
   'Dropout': ['Dropout', 'Cộng + Dropout', 'Stochastic depth + cộng'],
   'Lớp đầu ra': ['Linear → từ điển', 'LM head', 'Head phân loại', 'FC 1000 + Softmax', 'Conv 1×1 → 2 lớp', 'Softmax + Cross-entropy'],
-  'Đầu vào': ['Token nguồn', 'Token đích (dịch phải)', 'Token vào', 'Ảnh vào', 'Điểm vào (x, y)'],
+  'Đầu vào': ['Token nguồn', 'Token đích (dịch phải)', 'Token vào', 'Ảnh vào', 'Điểm vào (x, y)', 'Câu mô tả (prompt)', 'Latent nhiễu z_T'],
   'Tách và nối các đầu': ['Tách 8 đầu', 'Tách 12 đầu', 'Nối các đầu', 'Lặp K, V cho nhóm', 'Tách 3 đầu', 'Tách 6 đầu', 'Tách 24 đầu'],
-  'Nối (concat)': ['Nối các đầu', 'Nối [hₜ₋₁; xₜ]', 'Cắt và nối (copy & crop)', 'Thêm token [CLS]', 'Nối kênh', 'Gom 2×2 patch'],
+  'Nối (concat)': ['Nối các đầu', 'Nối [hₜ₋₁; xₜ]', 'Cắt và nối (copy & crop)', 'Thêm token [CLS]', 'Nối kênh', 'Gom 2×2 patch', 'Nối skip'],
   'Chồng nhiều lớp giống nhau': ['Encoder', 'Decoder', 'LSTM', 'Bottleneck (identity)', 'MBConv (identity)', 'Khối Swin (W-MSA)', 'Khối Swin (SW-MSA)']
 };
 

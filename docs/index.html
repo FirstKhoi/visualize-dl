@@ -277,6 +277,7 @@ window.MathJax = {
 <script src="models/efficientnet.js"></script>
 <script src="models/lstm.js"></script>
 <script src="models/unet.js"></script>
+<script src="models/sd.js"></script>
 <script src="models/mlp.js"></script>
 <script type="module">
 import * as THREE from 'three';
@@ -1074,7 +1075,7 @@ function renderLegend() {
   const cats = [...new Set(level.items.map(it => it.node.cat))];
   legend.innerHTML = cats.map(c => `<span><i style="background: var(--c-${cv(c)})"></i>${CAT[c]}</span>`).join('')
     + (level.links.some(l => l.kind === 'skip' || l.kind === 'short') ? '<span><i class="skip"></i>Đường tắt residual</span>' : '')
-    + (level.links.some(l => l.kind === 'loop') ? '<span><i class="skip" style="background: var(--c-act)"></i>Vòng lặp sinh token</span>' : '')
+    + (level.links.some(l => l.kind === 'loop') ? '<span><i class="skip" style="background: var(--c-act)"></i>Vòng lặp: chạy lại mạng</span>' : '')
     + (level.links.some(l => l.kind === 'concat') ? '<span><i class="skip" style="background: var(--c-embed)"></i>Đường tắt nối (concat)</span>' : '')
     + '<span class="note">Khối dày: có trọng số hoặc đổi shape. Lát mỏng: giữ nguyên shape. Bóng mờ phía sau: lớp lặp lại.</span>';
   if (backward) legend.innerHTML += '<span class="note">Chiều ngược: hạt là gradient, chạy từ loss về input. Ở mỗi phép cộng, gradient được chép nguyên sang cả hai nhánh, nên đường tắt (hạt to) mang nó thẳng về các lớp đầu.</span>';
