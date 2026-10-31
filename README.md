@@ -3,7 +3,7 @@
 Explore twelve neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
 Khám phá mười hai kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
 
-![Drilling into the Transformer's attention, then training the MLP lab](media/demo.gif)
+![Opening the Transformer down to its attention, drawing a digit for the trained CNN, then training the MLP lab (English version)](media/demo.gif)
 
 **Live demo:** https://firstkhoi.github.io/visualize-dl/
 

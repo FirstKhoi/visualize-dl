@@ -106,7 +106,7 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
   - **Cho thấy phần việc của chủ repo:** mục "How this was built" trong README, `training/README.md`, bản nháp bài viết `writing/lessons-draft.md` (chủ repo phải tự viết lại bằng lời của mình), form góp ý (`.github/ISSUE_TEMPLATE/feedback.yml`, link ở cuối mỗi khối), bộ nghiên cứu nhỏ `study/` (quy trình, bài kiểm tra 12 câu, bản nháp bài đăng).
   - **Bản tiếng Anh** cho giao diện và 4 tab (xem mục "Bản tiếng Anh").
   - Sửa số kiểu `128\,256` hiện nguyên văn trong văn xuôi (`fmtText`).
-  - `scripts/audit-layout.mjs` (kiểm tra bố cục) và `scripts/record-demo.mjs` (quay GIF demo).
+  - `scripts/audit-layout.mjs` (kiểm tra bố cục; lần chạy 2026-10-31 với font thật: không lỗi nào ở cả 5 cỡ màn hình, 1 017 panel khác nhau, tiếng Việt và 4 tab tiếng Anh) và `scripts/record-demo.mjs`; `media/demo.gif` quay lại bằng bản tiếng Anh (28 s, 3.8 MB).
 
 **Bước tiếp theo, theo thứ tự**
 1. **Việc của chủ repo (Claude không làm thay được):** viết lại bài viết bằng lời của mình; sửa mô tả "About" của repo trên GitHub (nhắc tới bản tiếng Anh và CNN thật); đăng bài giới thiệu (`study/announcement.md`); chạy nghiên cứu nhỏ (`study/README.md`), hỏi trường về hội đồng đạo đức nếu định công bố; chạy thử bản PyTorch trên Colab.
