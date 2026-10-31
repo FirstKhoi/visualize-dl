@@ -11,6 +11,8 @@ cp blocks.js live.js docs/
 cp models/*.js docs/models/
 mkdir -p docs/models/weights
 cp models/weights/*.js docs/models/weights/
+mkdir -p docs/i18n
+cp i18n/*.js docs/i18n/
 {
   printf '<!doctype html>\n<html lang="vi">\n'
   sed "s#^const ARTIFACT_URL = '[^']*';#const ARTIFACT_URL = '';#" index.html

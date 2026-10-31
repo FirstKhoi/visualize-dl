@@ -20,11 +20,13 @@ Mở `index.html` trực tiếp bằng trình duyệt (`file://`) là chạy đ�
 | File | Vai trò |
 |---|---|
 | `index.html` | Toàn bộ giao diện: CSS, cảnh 3D, panel, lab, các demo. Một `<script type="module">` lớn |
-| `blocks.js` | Khối dùng chung (attention, FFN, các lớp norm…), danh sách paper `PAPER` (dùng qua `ref(key, note)`), chỉ mục khái niệm `CONCEPTS` |
+| `blocks.js` | Khối dùng chung (attention, FFN, các lớp norm…), danh sách paper `PAPER` (dùng qua `ref(key, note)`), chỉ mục khái niệm `CONCEPTS`, `textId` (khoá của bản dịch), `fmt` (số trong `\( \)`) và `fmtText` (số trong văn xuôi) |
 | `live.js` | Mọi thứ thật sự tính toán: `rng`/`gauss` (có seed), `TOY` (attention đồ chơi), `TOYCONV`, `TRAIN` (MLP train trong trang), `GRAD` (thí nghiệm gradient), `SAMPLE` (lấy mẫu từ kế tiếp), `SWIN` (cửa sổ dịch đồ chơi), `DIFF` (khuếch tán 2D: lịch nhiễu của SD, bộ khử nhiễu chính xác cho hỗn hợp Gauss, DDIM, guidance), `CNN` (forward của CNN MNIST và tiền xử lý hình vẽ kiểu MNIST) |
 | `models/*.js` | Mỗi file một kiến trúc, dựng cây khối bằng `n(name, cat, shape, info, more)` |
 | `models/weights/mnist-cnn.js` | Trọng số của CNN MNIST (`MNIST_CNN`), do `training/train_mnist_cnn.py` sinh ra. Không sửa tay; train lại thì chạy script rồi `npm test` |
 | `training/` | Script train bằng NumPy (nguồn của trọng số trong repo), bản PyTorch tương đương cho Colab, `results.json`. Dữ liệu MNIST tải về `training/data/` (gitignore) |
+| `i18n/en.js` | Bản tiếng Anh `EN_TEXT`: khoá là `textId(văn bản tiếng Việt)`. Chỉ tải khi `?lang=en` |
+| `scripts/i18n.mjs` | Độ phủ bản dịch theo tab; `missing <tab>` in ra các mục còn thiếu, điền sẵn tiếng Việt để dịch tại chỗ |
 | `docs/` | Bản cho GitHub Pages do `build-pages.sh` sinh ra. Không sửa tay |
 | `tests/*.test.mjs` | Unit test. `tests/load.mjs` chạy các `<script src>` của `index.html` trong Node, biến `console.assert` thành lỗi thật |
 | `tests/e2e/` | Test bằng Playwright. `browser.mjs` lấy three.js từ `node_modules` (phiên bản phải khớp import map) và chặn mọi request ra mạng. MathJax mặc định được giả lập; test về bố cục mở trang với `app.open(hash, { mathjax: true })` để có công thức thật. Font luôn được giả lập |
@@ -51,6 +53,13 @@ Các key hiện có:
 
 Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.mjs` tự mở một khối của mỗi key và kiểm tra phần trong panel; nếu class của section khác `live` thì cập nhật map `SECTION` trong file test đó.
 
+### Bản tiếng Anh
+- `?lang=en|vi` chọn ngôn ngữ và được nhớ trong `localStorage`; nút EN/VI tải lại trang với `?lang`, giữ hash. Module script `await` tải `i18n/en.js` trước khi dựng gì, chỉ khi là tiếng Anh.
+- Nội dung model (tên khối, shape, `info`, công thức, code, nhãn link, paper, khái niệm) đi qua `tr(s)`: bản dịch trong `EN_TEXT[textId(s)]`, không có thì giữ tiếng Việt và panel ghi "Not translated yet". Chuỗi chỉ được coi là tiếng Việt nếu có chữ có dấu.
+- Chuỗi giao diện và demo viết cả hai thứ tiếng ngay trong `index.html` bằng `L(vi, en)`; từ đồ chơi của demo (câu attention, token lấy mẫu, tên bộ dữ liệu) qua `gloss(w)`. Hàm nào gọi `L()` thì không được đặt biến cục bộ tên `L` (các hàm về level như `paintLive(L)` có, nên đừng gọi `L()` trong đó).
+- Đã dịch: giao diện, Transformer, LLaMA 3, Huấn luyện, CNN (`DONE` trong `tests/i18n.test.mjs`). Sửa một văn bản tiếng Việt của các tab này thì id đổi: test báo mục cũ là "stale" và văn bản mới là "missing"; dịch lại rồi xoá mục cũ. Dịch thêm tab: `node scripts/i18n.mjs missing <tab>`, dán vào `i18n/en.js`, dịch, thêm tab vào `DONE`. Giá trị là chuỗi JS: dấu `\` của TeX viết `\\`.
+- `tests/e2e/lang.test.mjs` kiểm tra không còn chữ tiếng Việt trên các tab đã dịch (trừ link sang tab chưa dịch).
+
 ### API của `TRAIN` (live.js)
 - `makeData(name, n = 200, { seed = 42, flip = 0 })`: `flip` là tỉ lệ nhãn bị lật (nhiễu nhãn); điểm không di chuyển. Tập test trong lab dùng `{ seed: 7 }`.
 - `init(H, seed = 1)`, `resetOpt(net)`.
@@ -67,6 +76,7 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - **Node và Chromium lệch nhau ở chữ số cuối** sau khoảng 100 bước train, và Adam khuếch đại sai lệch đó. Không assert số chính xác của một lần chạy dài trong trình duyệt; ví dụ trong bài thì ghi theo khoảng.
 - **Chromium headless trong môi trường cloud chỉ vẽ khoảng 5 khung hình/giây** (WebGL bằng phần mềm), nên lab chỉ chạy khoảng 25 bước/giây. Test e2e cần train lâu phải đặt timeout rộng. Trên máy thật, lab chạy 150–240 bước/giây.
 - **Test e2e với phần tử bị vẽ lại liên tục:** Playwright không `hover` được vì phần tử không bao giờ "đứng yên". Hãy cuộn tới khi chưa chạy, rồi dùng `page.mouse.move` tới toạ độ cố định.
+- **Số trong văn xuôi dùng `fmtText`**, không dùng `fmt`: MathJax chỉ xử lý trong `\( \)`, nên `\,` ngoài đó hiện nguyên văn (test trong `tests/page.test.mjs`).
 - **Tránh trùng class CSS** với các demo khác (ví dụ `.tok`, `.live label` đã có sẵn).
 - **Bố cục panel:**
   - Nút gắn với một mục (như "Sao chép") đặt trên hàng tiêu đề qua tham số `tool` của `sec(h, body, tool)`, không định vị tuyệt đối đè lên nội dung.

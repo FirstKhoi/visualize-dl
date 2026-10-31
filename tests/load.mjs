@@ -16,4 +16,5 @@ export function run(sources) {
 export const pageScripts = () => [...readFileSync(new URL('index.html', ROOT), 'utf8').matchAll(/<script src="([^"]+)"><\/script>/g)]
   .map(m => m[1]).filter(src => !/^https?:/.test(src));
 
-export const loadPage = () => run(pageScripts().map(name => ({ name, code: readFileSync(new URL(name, ROOT), 'utf8') })));
+// extra: more classic scripts to run after the page's own, e.g. i18n/en.js
+export const loadPage = (extra = []) => run([...pageScripts(), ...extra].map(name => ({ name, code: readFileSync(new URL(name, ROOT), 'utf8') })));

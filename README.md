@@ -13,12 +13,14 @@ Khám phá mười hai kiến trúc mạng nơ-ron trong 3D, mở từng khối 
 
 ## English
 
-The interface and explanations are in Vietnamese. Every block in every model can be opened and shows:
+The site is written in Vietnamese and has an English version: press **EN** or add `?lang=en`. The interface and the Transformer, LLaMA 3, Training lab and CNN tabs are translated; the other tabs still show their Vietnamese text, marked as not translated yet.
+
+Every block in every model can be opened and shows:
 
 - its **tensor shapes** (batch dimension dropped), drawn to scale: a thick box has weights or changes shape, a thin slab keeps the shape;
 - the **formula**, a **worked example with real numbers**, and the **parameter count**, computed in code;
 - **PyTorch code** for the block and the **paper** it comes from, with the section;
-- the other models where the same idea appears ("Cũng xuất hiện ở").
+- the other models where the same idea appears ("Also appears in").
 
 ### Models
 
@@ -43,7 +45,7 @@ The attention and convolution demos use small hand-picked inputs so every number
 ### Also
 
 - Search any block with **Ctrl F**. Press **Esc** to go up a level.
-- **Chiều ngược** (backward) makes the particles flow from the loss to the input, like gradients.
+- **Backward** makes the particles flow from the loss to the input, like gradients.
 - Every view has its own link, e.g. `#llm.2.1`.
 - Works in light and dark mode, and on phones and tablets.
 
@@ -58,7 +60,7 @@ npm run test:e2e    # the page itself in headless Chromium, offline
 ./build-pages.sh    # rebuilds docs/ (the GitHub Pages copy); commit docs/ with your change
 ```
 
-The tests run every script of the page in Node. That covers the self-checks inside the scripts (toy attention against values computed in Python, the toy shifted windows, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion's U-Net, CLIP text encoder and VAE decoder, and the lab's MLP), plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
+The tests run every script of the page in Node. That covers the English version (every text of a translated tab has an entry, no entry is stale, and the browser tests find no Vietnamese left on those tabs),  the self-checks inside the scripts (toy attention against values computed in Python, the toy shifted windows, the toy convolution, backprop against finite differences, the parameter totals of LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion's U-Net, CLIP text encoder and VAE decoder, and the lab's MLP), the trained CNN against its training logits, plus the training lab's optimizers, pacing and advice. The browser tests open the page with three.js from `node_modules` and check what you see: the decision boundary on the 3D block, a run stopping when you leave the lab, theme switches, the loss chart and its tooltip, and that screen readers aren't flooded during training. CI runs both on every push and fails if `docs/` is out of date.
 
 ### Files
 
@@ -67,6 +69,8 @@ index.html        page, 3D scene, panel, lab UI
 blocks.js         shared blocks (attention, FFN, norms…), paper list, concept index
 live.js           what really computes: toy attention, toy shifted windows, toy conv, gradient experiments, the trainable MLP, next-word sampling, toy diffusion
 models/*.js       one file per architecture (models/weights/: the trained CNN's weights)
+i18n/en.js        the English texts, keyed by a hash of the Vietnamese text; loaded only for ?lang=en
+scripts/i18n.mjs  translation coverage, and the texts a tab still lacks
 training/         how the CNN was trained (NumPy script, PyTorch version, results)
 tests/            node --test suites (tests/e2e: in the browser)
 docs/             copy for GitHub Pages, built by build-pages.sh
@@ -74,12 +78,14 @@ docs/             copy for GitHub Pages, built by build-pages.sh
 
 To add a model, create `models/<name>.js` (see `models/vit.js` for a short one) and add its `<script>` tag to `index.html`. The tests pick it up automatically.
 
+To translate another tab, run `node scripts/i18n.mjs missing vit`, paste the output into `i18n/en.js` and replace each Vietnamese value with English, then add the tab to `DONE` in `tests/i18n.test.mjs`. `node scripts/i18n.mjs` shows the coverage of every tab.
+
 ### Roadmap
 
-1. Demos for missing ideas: normalisation axes, ViT patches, receptive fields, RoPE, BPE.
+1. Demos for missing ideas: normalization axes, ViT patches, receptive fields, RoPE, BPE.
 2. Real trained models in the browser: ~~a small CNN on MNIST where you draw a digit~~ (done), a tiny Vietnamese GPT trained on *Truyện Kiều*.
-3. New architectures built from existing blocks: diffusion, CLIP, mixture of experts, VAE.
-4. English content.
+3. New architectures built from existing blocks: mixture of experts (~~diffusion, CLIP, VAE~~: done, in Stable Diffusion).
+4. English: ~~the interface, Transformer, LLaMA 3, the training lab, the CNN~~ (done); the other nine models.
 
 ### How this was built
 
@@ -95,6 +101,8 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 - **công thức**, **ví dụ với số thật**, **số tham số** (tính bằng code);
 - **code PyTorch** và **paper gốc**, kèm mục trong paper;
 - những mạng khác có cùng ý tưởng ("Cũng xuất hiện ở").
+
+Có bản tiếng Anh: bấm **EN** hoặc thêm `?lang=en`. Giao diện và các tab Transformer, LLaMA 3, Huấn luyện, CNN đã được dịch; các tab còn lại hiện nội dung tiếng Việt, kèm ghi chú là chưa dịch.
 
 ### Các mạng
 
@@ -114,7 +122,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, full batch hoặc mini-batch, nhiễu nhãn, weight decay, tập test riêng với đường loss train/test, ranh giới quyết định, lời khuyên đọc từ đường loss (kể cả overfitting), ma trận trọng số thật tô lên khối 3D |
 | **CNN (MNIST)** | CNN nhỏ train thật trên MNIST (5 258 tham số, đúng 98,2% trên tập test): hai conv 3×3, max-pool, một lớp Linear | Vẽ một chữ số hoặc chọn ảnh MNIST mẫu: ảnh 28×28 mà mạng nhìn thấy (thu vào 20×20, căn theo trọng tâm như MNIST), bản đồ đặc trưng thật của từng kênh, 10 xác suất |
 
-Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc được từng con số. Chỉ phòng thí nghiệm huấn luyện là học trọng số thật.
+Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc được từng con số. Phòng thí nghiệm huấn luyện học trọng số ngay trong trang, còn tab CNN chạy trọng số đã train trên MNIST bằng `training/train_mnist_cnn.py` (NumPy, backprop viết tay; bản PyTorch cho Colab nằm cạnh).
 
 ### Chạy
 
@@ -127,9 +135,11 @@ npm run test:e2e    # chạy chính trang web trong Chromium headless, không c�
 ./build-pages.sh    # build lại docs/ (bản cho GitHub Pages); commit docs/ cùng thay đổi
 ```
 
-Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, U-Net, CLIP text encoder và VAE decoder của Stable Diffusion, và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
+Test chạy mọi script của trang trong Node. Chúng kiểm tra bản tiếng Anh (mọi nội dung của tab đã dịch đều có bản dịch, không bản dịch nào bị cũ, và test trình duyệt không thấy chữ tiếng Việt nào sót lại trên các tab đó), các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net; U-Net, CLIP text encoder và VAE decoder của Stable Diffusion;, và MLP của phòng thí nghiệm), CNN so với logit lúc train, cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
 
 Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là file ngắn), rồi thêm thẻ `<script>` vào `index.html`. Test sẽ tự nhận file mới.
+
+Muốn dịch thêm một tab: chạy `node scripts/i18n.mjs missing vit`, dán kết quả vào `i18n/en.js` rồi thay từng giá trị tiếng Việt bằng tiếng Anh, sau đó thêm tab vào `DONE` trong `tests/i18n.test.mjs`. `node scripts/i18n.mjs` cho biết mỗi tab đã dịch được bao nhiêu.
 
 ### Cách project được làm
 

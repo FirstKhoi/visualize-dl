@@ -144,6 +144,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .refs { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; }
 .refs a { color: var(--accent); }
 .refs span { color: var(--muted); }
+.untranslated { margin: -6px 0 12px !important; padding: 6px 10px; font-size: 12.5px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; }
 .feedback { margin-top: 26px !important; font-size: 13px; }
 .feedback a { color: var(--muted); }
 .feedback a:hover { color: var(--accent); }
@@ -266,6 +267,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
         <div class="search-list" id="find-list" role="listbox" aria-label="Kết quả tìm khối" hidden></div>
       </div>
       <button type="button" class="dir" id="dir" aria-pressed="false" aria-label="Chiều ngược" title="Cho hạt chạy ngược như gradient trong lan truyền ngược">⇄<span class="dir-label"> Chiều ngược</span></button>
+      <button type="button" class="dir" id="lang" data-act="lang" lang="en" aria-label="English">EN</button>
       <nav class="crumbs" id="crumbs" aria-label="Vị trí đang xem"></nav>
     </div>
     <div class="bottom">
@@ -315,8 +317,34 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 // MODELS, SLAB, BALL come from blocks.js and models/*.js (classic scripts above)
 
+// ---------- language: Vietnamese, or English wherever i18n/en.js has the text (that file loads only for English) ----------
+// ?lang=en|vi chooses and is remembered; without it, the last choice, else Vietnamese
+const LANG = (() => {
+  const q = new URLSearchParams(location.search).get('lang'), ok = q === 'en' || q === 'vi';
+  try { if (ok) localStorage.setItem('lang', q); return ok ? q : localStorage.getItem('lang') === 'en' ? 'en' : 'vi'; }
+  catch { return q === 'en' ? 'en' : 'vi'; } // storage blocked: only the parameter counts
+})();
+if (LANG === 'en') await new Promise(done => document.head.append(Object.assign(document.createElement('script'), { src: 'i18n/en.js', onload: done, onerror: done })));
+document.documentElement.lang = LANG;
+const EN = LANG === 'en' && typeof EN_TEXT !== 'undefined' ? EN_TEXT : null;
+const L = (vi, en) => LANG === 'en' ? en : vi; // a UI string, written here in both languages (functions that call it must not name a local L)
+const VI_TEXT = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
+const tr = s => EN && typeof s === 'string' && VI_TEXT.test(s) ? EN[textId(s)] ?? s : s; // model content: its English, else the Vietnamese original
+const untranslated = s => !!EN && typeof s === 'string' && VI_TEXT.test(s) && !(textId(s) in EN);
+// the demos' Vietnamese toy words (attention, sampling, the lab's datasets), glossed word by word; the code keeps the Vietnamese keys
+const GLOSS = L({}, {
+  'mèo': 'cat', 'chuột': 'mouse', 'cơm': 'rice', 'đen': 'black', 'đói': 'hungry', 'đuổi': 'chases', 'ăn': 'eats', 'nó': 'it',
+  'danh từ': 'noun', 'động từ': 'verb', 'tính từ': 'adjective', 'đại từ': 'pronoun', 'con vật': 'animal',
+  'Hôm nay trời rất': 'Today the weather is very', 'đẹp': 'nice', 'nóng': 'hot', 'lạnh': 'cold', 'nắng': 'sunny', 'oi': 'muggy', 'mát': 'cool',
+  'âm u': 'gloomy', 'trong': 'clear', 'xanh': 'blue', 'đẹp trai': 'handsome', 'ngon': 'tasty', 'chạy': 'running',
+  'Hai cụm': 'Two blobs', 'Vòng tròn': 'Circles', 'Xoắn ốc': 'Spiral'
+});
+const gloss = w => GLOSS[w] ?? w;
+if (EN) document.title = 'Anatomy of a neural network';
+
 // ---------- scene ----------
-const CAT = { io: 'Dữ liệu', shape: 'Đổi shape', embed: 'Embedding', attn: 'Attention', linear: 'Tuyến tính', conv: 'Tích chập', norm: 'Chuẩn hoá', act: 'Kích hoạt', add: 'Cộng residual', pool: 'Pooling', block: 'Khối' };
+const CAT = L({ io: 'Dữ liệu', shape: 'Đổi shape', embed: 'Embedding', attn: 'Attention', linear: 'Tuyến tính', conv: 'Tích chập', norm: 'Chuẩn hoá', act: 'Kích hoạt', add: 'Cộng residual', pool: 'Pooling', block: 'Khối' },
+  { io: 'Data', shape: 'Reshape', embed: 'Embedding', attn: 'Attention', linear: 'Linear', conv: 'Convolution', norm: 'Normalization', act: 'Activation', add: 'Residual add', pool: 'Pooling', block: 'Block' });
 const cv = c => c === 'shape' ? 'io' : c;
 const SLABS = new Set(['act', 'norm', 'add']);
 const V3 = THREE.Vector3;
@@ -383,12 +411,12 @@ function makeItem(it, stagger, base, up) {
     it.body.add(g);
   }
   // box = output tensor, so the label shows the output shape; lshape overrides it ('' hides it)
-  const lshape = nd.lshape ?? (nd.shape && !(SLABS.has(nd.cat) && !nd.children) ? nd.shape.split('→').pop().trim() : '');
+  const lshape = tr(nd.lshape) ?? (nd.shape && !(SLABS.has(nd.cat) && !nd.children) ? tr(nd.shape).split('→').pop().trim() : '');
   it.el = document.createElement('div');
   it.el.className = 'tag-anchor' + (up ? ' up' : '');
-  it.el.innerHTML = `<button class="tag" type="button" tabindex="-1"><span>${nd.tag || nd.name}${nd.repeat > 1 ? ` <b>×${nd.repeat}</b>` : ''}</span>`
+  it.el.innerHTML = `<button class="tag" type="button" tabindex="-1"><span>${nameOf(nd)}${nd.repeat > 1 ? ` <b>×${nd.repeat}</b>` : ''}</span>`
     + (lshape ? `<small>${lshape}</small>` : '')
-    + (nd.children ? `<em>▸ ${nd.hint || nd.children.length + ' phần'}</em>` : '') + '</button>';
+    + (nd.children ? `<em>▸ ${nd.hint ? tr(nd.hint) : nd.children.length + L(' phần', ' parts')}</em>` : '') + '</button>';
   it.el.firstChild.addEventListener('click', () => pick(it));
   const label = new CSS2DObject(it.el);
   label.position.set(0, up ? base + 0.25 : base - 0.25 - (stagger && it.i % 2 ? 1.3 : 0), 0);
@@ -457,7 +485,7 @@ function makeLink(l, items) {
   if (l.label) {
     o.el = document.createElement('div');
     o.el.className = 'link-tag' + (l.kind === 'cross' ? ' cross' : '');
-    o.el.textContent = l.label;
+    o.el.textContent = tr(l.label);
     const t = new CSS2DObject(o.el);
     t.position.copy(curve.getPointAt(l.at ?? 0.5)).add(new V3(0, 0.22, 0));
     o.root.add(t);
@@ -708,32 +736,33 @@ const matTable = (title, M, rows, cols) => {
 };
 
 function liveOut(stage) {
-  const r = TOY.run(live.words, live), w = r.words, F = TOY.F, K = TOY.KD;
+  const r = TOY.run(live.words, live), w = r.words.map(gloss), F = TOY.F.map(gloss), K = TOY.KD.map(gloss);
   const mats = {
-    sdpa: [['x: đặc trưng của từng từ', r.X, w, F], ['A: trọng số attention', r.A, w, w], ['O = A·V: output', r.O, w, F]],
-    qk: [['Q = x·W_Q (từ này tìm gì)', r.Q, w, K], ['K = x·W_K (từ này là gì)', r.K, w, K], ['S = Q·Kᵀ', r.S, w, w]],
-    scale: [[live.scale ? 'S / √3' : 'S (đang tắt chia √dₖ)', r.St, w, w]],
-    mask: [[live.causal ? 'S̃ + M (mặt nạ nhân quả)' : 'S̃ + M (đang tắt mặt nạ, M = 0)', r.Sm, w, w]],
-    softmax: [['A = softmax(S̃ + M), theo hàng', r.A, w, w]],
+    sdpa: [[L('x: đặc trưng của từng từ', 'x: the features of each word'), r.X, w, F], [L('A: trọng số attention', 'A: attention weights'), r.A, w, w], ['O = A·V: output', r.O, w, F]],
+    qk: [[L('Q = x·W_Q (từ này tìm gì)', 'Q = x·W_Q (what this word looks for)'), r.Q, w, K], [L('K = x·W_K (từ này là gì)', 'K = x·W_K (what this word is)'), r.K, w, K], ['S = Q·Kᵀ', r.S, w, w]],
+    scale: [[live.scale ? 'S / √3' : L('S (đang tắt chia √dₖ)', 'S (division by √dₖ is off)'), r.St, w, w]],
+    mask: [[live.causal ? L('S̃ + M (mặt nạ nhân quả)', 'S̃ + M (causal mask)') : L('S̃ + M (đang tắt mặt nạ, M = 0)', 'S̃ + M (mask off, M = 0)'), r.Sm, w, w]],
+    softmax: [[L('A = softmax(S̃ + M), theo hàng', 'A = softmax(S̃ + M), row by row'), r.A, w, w]],
     av: [['V = x (W_V = I)', r.V, w, F], ['O = A·V', r.O, w, F]]
   }[stage];
   const pct = v => Math.round(v * 100) + '%';
   const attn = w.map((t, i) => `<span><b>${t}</b> → ${r.A[i].map((v, j) => [v, w[j]]).sort((a, b) => b[0] - a[0]).slice(0, 2).filter(x => x[0] >= 0.05).map(([v, u]) => `${u} ${pct(v)}`).join(', ')}</span>`);
-  const outs = w.map((t, i) => `<span><b>${t}</b> giờ mang: ${F.map((f, c) => [r.O[i][c], f]).filter(x => x[0] >= 0.25).map(([v, f]) => `${f} ${v.toFixed(2)}`).join(', ') || 'gần như không gì'}</span>`);
+  const outs = w.map((t, i) => `<span><b>${t}</b> ${L('giờ mang', 'now carries')}: ${F.map((f, c) => [r.O[i][c], f]).filter(x => x[0] >= 0.25).map(([v, f]) => `${f} ${v.toFixed(2)}`).join(', ') || L('gần như không gì', 'almost nothing')}</span>`);
   const reading = { sdpa: attn, softmax: attn, av: outs }[stage];
   return mats.map(m => matTable(...m)).join('') + (reading ? `<p class="reading">${reading.join('')}</p>` : '');
 }
 
-const liveSent = () => live.words.map((w, i) => `<span class="tok">${w}<button type="button" data-del="${i}" aria-label="Bỏ từ ${w}"${live.words.length < 2 ? ' disabled' : ''}>×</button></span>`).join('');
+const liveSent = () => live.words.map((w, i) => `<span class="tok">${gloss(w)}<button type="button" data-del="${i}" aria-label="${L('Bỏ từ', 'Remove')} ${gloss(w)}"${live.words.length < 2 ? ' disabled' : ''}>×</button></span>`).join('');
 
-const liveSection = stage => `<section class="live"><h3>Số chạy thật</h3>
-  <p class="kids-hint">Mô hình đồ chơi chạy ngay trong trang. Mỗi từ có 5 đặc trưng; W_Q và W_K được đặt tay thay vì học, để số đọc được (d_k = 3, W_V = I, không có PE). Đổi câu hoặc bật mặt nạ: mọi ma trận và heatmap 3D cập nhật ngay.</p>
+const liveSection = stage => `<section class="live"><h3>${L('Số chạy thật', 'Live numbers')}</h3>
+  <p class="kids-hint">${L('Mô hình đồ chơi chạy ngay trong trang. Mỗi từ có 5 đặc trưng; W_Q và W_K được đặt tay thay vì học, để số đọc được (d_k = 3, W_V = I, không có PE). Đổi câu hoặc bật mặt nạ: mọi ma trận và heatmap 3D cập nhật ngay.',
+    'A toy model that runs right in the page. Each word has 5 features; W_Q and W_K are set by hand instead of learned, so the numbers can be read (d_k = 3, W_V = I, no PE). The sentences are Vietnamese, glossed word by word, so adjectives come after their nouns. Change the sentence or turn the mask on: every matrix and the 3D heatmaps update at once.')}</p>
   <div class="live-ctl">
-    <div class="sent" aria-label="Câu đang chạy">${liveSent()}</div>
-    <div class="vocab"><span>Thêm từ:</span>${Object.keys(TOY.VOCAB).map(w => `<button type="button" data-add="${w}"${live.words.length >= MAXW ? ' disabled' : ''}>${w}</button>`).join('')}</div>
-    <div class="vocab"><span>Câu mẫu:</span>${TOY.PRESETS.map((p, k) => `<button type="button" data-preset="${k}">${p.join(' ')}</button>`).join('')}</div>
-    <label><input type="checkbox" id="live-causal"${live.causal ? ' checked' : ''}> Mặt nạ nhân quả (mỗi từ chỉ nhìn các từ phía trước)</label>
-    <label><input type="checkbox" id="live-scale"${live.scale ? ' checked' : ''}> Chia √dₖ</label>
+    <div class="sent" aria-label="${L('Câu đang chạy', 'The sentence being run')}">${liveSent()}</div>
+    <div class="vocab"><span>${L('Thêm từ:', 'Add a word:')}</span>${Object.keys(TOY.VOCAB).map(w => `<button type="button" data-add="${w}"${live.words.length >= MAXW ? ' disabled' : ''}>${gloss(w)}</button>`).join('')}</div>
+    <div class="vocab"><span>${L('Câu mẫu:', 'Examples:')}</span>${TOY.PRESETS.map((p, k) => `<button type="button" data-preset="${k}">${p.map(gloss).join(' ')}</button>`).join('')}</div>
+    <label><input type="checkbox" id="live-causal"${live.causal ? ' checked' : ''}> ${L('Mặt nạ nhân quả (mỗi từ chỉ nhìn các từ phía trước)', 'Causal mask (each word only sees the words before it)')}</label>
+    <label><input type="checkbox" id="live-scale"${live.scale ? ' checked' : ''}> ${L('Chia √dₖ', 'Divide by √dₖ')}</label>
   </div>
   <div class="live-out">${liveOut(stage)}</div></section>`;
 
@@ -926,14 +955,18 @@ function difSlider(t) {
 // gradient experiment: how much gradient survives L layers (or T time steps) going backwards
 const exp = { res: { L: 50, sigma: 0.9, beta: 0.2 }, rnn: { T: 50, sigma: 1, f: 0.95 } };
 const EXP = {
-  res: { len: s => s.L, run: GRAD.res, names: ['Mạng thường', 'Có đường tắt'], unit: 'lớp',
-    intro: 'Gradient chạy ngược từ loss về input. Mỗi lớp nhân nó với ma trận Jacobian của lớp đó (ở đây là ma trận ngẫu nhiên 32 chiều). Mạng thường: J = σ·W. Có đường tắt: J = I + β·W, trong đó I chính là đường tắt.',
-    sliders: [['L', 'Số lớp', 10, GRAD.MAX, 1], ['sigma', 'σ, độ lớn mỗi lớp của mạng thường', 0.5, 1.5, 0.05], ['beta', 'β, độ lớn nhánh F khi có đường tắt', 0, 1, 0.05]],
-    note: 'Mạng thường như đi trên dây: σ phải đúng bằng 1, lệch một chút là gradient tắt hẳn hoặc bùng nổ theo cấp số nhân. Có đường tắt, gradient luôn giữ quanh 1 vì phần I đi thẳng qua mọi lớp; nó chỉ tăng chậm, khoảng (1 + β²) mũ L/2, và ResNet thật giữ β nhỏ nhờ BatchNorm.' },
-  rnn: { len: s => s.T, run: GRAD.rnn, names: ['RNN thường', 'LSTM, qua bộ nhớ c'], unit: 'bước',
-    intro: 'Gradient lùi theo thời gian. RNN thường: mỗi bước nhân với cùng một W (×σ) và đạo hàm tanh (luôn nhỏ hơn 1). LSTM: đi dọc bộ nhớ c chỉ nhân với cổng quên f.',
-    sliders: [['T', 'Số bước lùi', 10, GRAD.MAX, 1], ['sigma', 'σ, độ lớn W của RNN thường', 0.5, 2, 0.05], ['f', 'f, cổng quên của LSTM', 0.5, 1, 0.01]],
-    note: 'RNN thường tắt ngay cả khi σ = 1 vì đạo hàm tanh luôn nhỏ hơn 1; tăng σ thì đến một ngưỡng nó chuyển sang bùng nổ. LSTM giảm đúng f mũ T, và mạng tự học giữ f gần 1 cho thông tin cần nhớ lâu.' }
+  res: { len: s => s.L, run: GRAD.res, names: L(['Mạng thường', 'Có đường tắt'], ['Plain network', 'With shortcut']), unit: L('lớp', 'layers'),
+    intro: L('Gradient chạy ngược từ loss về input. Mỗi lớp nhân nó với ma trận Jacobian của lớp đó (ở đây là ma trận ngẫu nhiên 32 chiều). Mạng thường: J = σ·W. Có đường tắt: J = I + β·W, trong đó I chính là đường tắt.',
+      'The gradient runs backwards from the loss to the input. Each layer multiplies it by that layer\'s Jacobian matrix (here a random 32-dimensional matrix). Plain network: J = σ·W. With a shortcut: J = I + β·W, where I is the shortcut itself.'),
+    sliders: [['L', L('Số lớp', 'Layers'), 10, GRAD.MAX, 1], ['sigma', L('σ, độ lớn mỗi lớp của mạng thường', 'σ, the size of each layer of the plain network'), 0.5, 1.5, 0.05], ['beta', L('β, độ lớn nhánh F khi có đường tắt', 'β, the size of the branch F next to the shortcut'), 0, 1, 0.05]],
+    note: L('Mạng thường như đi trên dây: σ phải đúng bằng 1, lệch một chút là gradient tắt hẳn hoặc bùng nổ theo cấp số nhân. Có đường tắt, gradient luôn giữ quanh 1 vì phần I đi thẳng qua mọi lớp; nó chỉ tăng chậm, khoảng (1 + β²) mũ L/2, và ResNet thật giữ β nhỏ nhờ BatchNorm.',
+      'The plain network walks a tightrope: σ must be exactly 1, and a little either way makes the gradient vanish or explode exponentially. With the shortcut the gradient stays around 1, because the I part goes straight through every layer; it only grows slowly, about (1 + β²) to the power L/2, and a real ResNet keeps β small thanks to BatchNorm.') },
+  rnn: { len: s => s.T, run: GRAD.rnn, names: L(['RNN thường', 'LSTM, qua bộ nhớ c'], ['Plain RNN', 'LSTM, through the memory c']), unit: L('bước', 'steps'),
+    intro: L('Gradient lùi theo thời gian. RNN thường: mỗi bước nhân với cùng một W (×σ) và đạo hàm tanh (luôn nhỏ hơn 1). LSTM: đi dọc bộ nhớ c chỉ nhân với cổng quên f.',
+      'The gradient goes back in time. Plain RNN: each step multiplies it by the same W (×σ) and by the derivative of tanh (always below 1). LSTM: along the memory c it is only multiplied by the forget gate f.'),
+    sliders: [['T', L('Số bước lùi', 'Steps back'), 10, GRAD.MAX, 1], ['sigma', L('σ, độ lớn W của RNN thường', 'σ, the size of W in the plain RNN'), 0.5, 2, 0.05], ['f', L('f, cổng quên của LSTM', "f, the LSTM's forget gate"), 0.5, 1, 0.01]],
+    note: L('RNN thường tắt ngay cả khi σ = 1 vì đạo hàm tanh luôn nhỏ hơn 1; tăng σ thì đến một ngưỡng nó chuyển sang bùng nổ. LSTM giảm đúng f mũ T, và mạng tự học giữ f gần 1 cho thông tin cần nhớ lâu.',
+      'The plain RNN fades even at σ = 1, because the derivative of tanh is always below 1; raise σ and past a threshold it explodes instead. The LSTM shrinks by exactly f to the power T, and the network learns to keep f near 1 for what it must remember for long.') }
 };
 const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
 const sup = e => String(e).split('').map(ch => SUP[ch]).join('');
@@ -943,38 +976,38 @@ let chartNow = null; // geometry of the chart on screen, for the hover crosshair
 
 // log-scale line chart of `what`; xs[k] = the step (layer, time step…) of point k, so long series can be thinned
 function lineChart({ what, series, names, unit, xLabel, xs = series[0].map((_, k) => k) }) {
-  const L = series[0].length - 1, lg = series.map(a => a.map(v => Math.log10(Number.isFinite(v) ? Math.max(v, 1e-30) : 1e15)));
+  const end = series[0].length - 1, lg = series.map(a => a.map(v => Math.log10(Number.isFinite(v) ? Math.max(v, 1e-30) : 1e15)));
   const lo = Math.max(-15, Math.min(-1, Math.floor(Math.min(...lg.flat())))), hi = Math.min(15, Math.max(1, Math.ceil(Math.max(...lg.flat()))));
-  const W = 360, H = 200, m = { l: 46, r: 96, t: 8, b: 30 }, span = xs[L] - xs[0];
+  const W = 360, H = 200, m = { l: 46, r: 96, t: 8, b: 30 }, span = xs[end] - xs[0];
   const x = k => m.l + (span ? (xs[k] - xs[0]) / span : 0) * (W - m.l - m.r), y = v => m.t + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - m.t - m.b);
   const step = Math.max(1, Math.ceil((hi - lo) / 5)), ticks = [];
   for (let e = hi; e >= lo; e -= step) ticks.push(e);
   const col = i => `var(${series.length > 1 && i ? '--chart-a' : '--chart-b'})`;
   // direct labels at the right end, nudged apart when two lines end close together
-  const ya = lg.map(a => y(a[L]));
+  const ya = lg.map(a => y(a[end]));
   if (ya.length === 2 && Math.abs(ya[0] - ya[1]) < 14) { const mid = (ya[0] + ya[1]) / 2, up = ya[0] < ya[1] ? 0 : 1; ya[up] = mid - 7; ya[1 - up] = mid + 7; }
-  chartNow = { L, x, xs, series, names, unit, m, W };
-  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${what} theo số ${unit}, thang log${names.length > 1 ? `: ${names.join(' và ')}` : ''}">`
+  chartNow = { end, x, xs, series, names, unit, m, W };
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${L(`${what} theo số ${unit}, thang log`, `${what} by ${unit}, log scale`)}${names.length > 1 ? `: ${names.join(L(' và ', ' and '))}` : ''}">`
     + ticks.map(e => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(e)}" y2="${y(e)}" stroke="var(--line)" stroke-width="1"/><text x="${m.l - 6}" y="${y(e) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${pow10(e)}</text>`).join('')
-    + [0, Math.round(L / 2), L].map(k => `<text x="${x(k)}" y="${H - m.b + 16}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${xs[k]}</text>`).join('')
+    + [0, Math.round(end / 2), end].map(k => `<text x="${x(k)}" y="${H - m.b + 16}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${xs[k]}</text>`).join('')
     + `<text x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${xLabel}</text>`
     + lg.map((a, i) => `<path d="M${a.map((v, k) => `${x(k).toFixed(1)},${y(v).toFixed(1)}`).join('L')}" fill="none" stroke="${col(i)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`).join('')
-    + lg.map((a, i) => `<circle cx="${x(L)}" cy="${y(a[L])}" r="4" fill="${col(i)}" stroke="var(--surface)" stroke-width="2"/><text x="${x(L) + 8}" y="${ya[i] + 4}" font-size="11" fill="var(--fg)">${names[i]}</text>`).join('')
+    + lg.map((a, i) => `<circle cx="${x(end)}" cy="${y(a[end])}" r="4" fill="${col(i)}" stroke="var(--surface)" stroke-width="2"/><text x="${x(end) + 8}" y="${ya[i] + 4}" font-size="11" fill="var(--fg)">${names[i]}</text>`).join('')
     + `<line class="xh" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/>`
     + `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" class="hit"/></svg>`;
   return `<div class="chart">${series.length > 1 ? `<div class="legend-row">${names.map((nm, i) => `<span><i style="background: ${col(i)}"></i>${nm}</span>`).join('')}</div>` : ''}${svg}<div class="tip" hidden></div></div>`;
 }
 
 function expOut(kind) {
-  const E = EXP[kind], s = exp[kind], L = E.len(s), d = E.run(s);
-  const ratio = v => v < 1 ? `nhỏ đi ${fmtG(1 / v)} lần` : `lớn lên ${fmtG(v)} lần`;
-  const rows = Array.from({ length: 11 }, (_, i) => Math.round(i * L / 10)).filter((k, i, a) => a.indexOf(k) === i);
-  return lineChart({ what: 'Độ lớn gradient', series: [d.plain, d.skip], names: E.names, unit: E.unit, xLabel: `số ${E.unit} tính từ loss →` })
-    + `<p class="reading"><span>Sau ${L} ${E.unit}: ${E.names[0]} còn <b>${fmtG(d.plain[L])}</b> (${ratio(d.plain[L])}); ${E.names[1]} còn <b>${fmtG(d.skip[L])}</b> (${ratio(d.skip[L])}).</span><span>${E.note}</span></p>`
-    + `<details><summary>Xem dạng bảng</summary><table><tr><th>${E.unit}</th><th>${E.names[0]}</th><th>${E.names[1]}</th></tr>${rows.map(k => `<tr><td>${k}</td><td>${fmtG(d.plain[k])}</td><td>${fmtG(d.skip[k])}</td></tr>`).join('')}</table></details>`;
+  const E = EXP[kind], s = exp[kind], n = E.len(s), d = E.run(s); // n, not L: L() is the language switch
+  const ratio = v => v < 1 ? L(`nhỏ đi ${fmtG(1 / v)} lần`, `${fmtG(1 / v)} times smaller`) : L(`lớn lên ${fmtG(v)} lần`, `${fmtG(v)} times larger`);
+  const rows = Array.from({ length: 11 }, (_, i) => Math.round(i * n / 10)).filter((k, i, a) => a.indexOf(k) === i);
+  return lineChart({ what: L('Độ lớn gradient', 'Gradient size'), series: [d.plain, d.skip], names: E.names, unit: E.unit, xLabel: L(`số ${E.unit} tính từ loss →`, `${E.unit} back from the loss →`) })
+    + `<p class="reading"><span>${L('Sau', 'After')} ${n} ${E.unit}: ${E.names[0]} ${L('còn', 'is at')} <b>${fmtG(d.plain[n])}</b> (${ratio(d.plain[n])}); ${E.names[1]} ${L('còn', 'is at')} <b>${fmtG(d.skip[n])}</b> (${ratio(d.skip[n])}).</span><span>${E.note}</span></p>`
+    + `<details><summary>${L('Xem dạng bảng', 'Show as a table')}</summary><table><tr><th>${E.unit}</th><th>${E.names[0]}</th><th>${E.names[1]}</th></tr>${rows.map(k => `<tr><td>${k}</td><td>${fmtG(d.plain[k])}</td><td>${fmtG(d.skip[k])}</td></tr>`).join('')}</table></details>`;
 }
-const expSection = kind => `<section class="exp"><h3>Thí nghiệm: gradient đi ngược</h3>
-  <p class="kids-hint">${EXP[kind].intro} Kéo thanh trượt, biểu đồ tính lại ngay (trục dọc thang log).</p>
+const expSection = kind => `<section class="exp"><h3>${L('Thí nghiệm: gradient đi ngược', 'Experiment: the gradient going backwards')}</h3>
+  <p class="kids-hint">${EXP[kind].intro} ${L('Kéo thanh trượt, biểu đồ tính lại ngay (trục dọc thang log).', 'Drag the sliders: the chart is recomputed at once (log scale on the vertical axis).')}</p>
   <div class="live-ctl">${EXP[kind].sliders.map(([k, label, min, max, st]) => `<label class="sl" for="e-${kind}-${k}"><span>${label}<output id="o-${kind}-${k}">${exp[kind][k]}</output></span><input type="range" id="e-${kind}-${k}" data-exp="${kind}" data-key="${k}" min="${min}" max="${max}" step="${st}" value="${exp[kind][k]}"></label>`).join('')}</div>
   <div class="exp-out">${expOut(kind)}</div></section>`;
 
@@ -984,9 +1017,9 @@ function chartHover(e) {
   hoverAt = svg && chartNow ? { clientX: e.clientX, clientY: e.clientY } : null;
   if (!hoverAt) return;
   const box = svg.getBoundingClientRect(), sx = (e.clientX - box.left) * chartNow.W / box.width;
-  const { L, x, xs, m, W, series, names, unit } = chartNow, at = xs[0] + (sx - m.l) / (W - m.l - m.r) * (xs[L] - xs[0]);
+  const { end, x, xs, m, W, series, names, unit } = chartNow, at = xs[0] + (sx - m.l) / (W - m.l - m.r) * (xs[end] - xs[0]);
   let k = 0;
-  for (let j = 1; j <= L; j++) if (Math.abs(xs[j] - at) < Math.abs(xs[k] - at)) k = j; // the nearest point
+  for (let j = 1; j <= end; j++) if (Math.abs(xs[j] - at) < Math.abs(xs[k] - at)) k = j; // the nearest point
   const xh = svg.querySelector('.xh'), tip = svg.parentElement.querySelector('.tip');
   xh.setAttribute('x1', x(k)); xh.setAttribute('x2', x(k)); xh.setAttribute('visibility', 'visible');
   tip.hidden = false;
@@ -1062,44 +1095,54 @@ function labDraw() {
 function labAdvice() {
   const h = lab.hist, n = h.length - 1, L0 = h[0], last = h.at(-1), pct = Math.round(lab.acc * 100), tpct = Math.round(lab.testAcc * 100);
   switch (TRAIN.diagnose(h, lab.acc, lab.D, { h: lab.test, acc: lab.testAcc })) {
-    case 'diverged': return 'Loss bùng nổ: learning rate quá lớn, mỗi bước nhảy quá xa và văng khỏi thung lũng. Giảm η rồi bấm Khởi tạo lại.';
-    case 'idle': return 'Bấm ▶ Chạy để mạng bắt đầu học, hoặc "Bước +1" để đi từng bước một.';
-    case 'dead': return `Loss kẹt ở ${fmtG(last)} và chỉ đúng ${pct}%: mạng đoán cùng một xác suất cho mọi điểm (khi hai lớp bằng nhau, loss đó là ln 2 = 0.693). Thường là do learning rate quá lớn làm mọi ReLU "chết" (luôn ra 0). Giảm η, đổi sang tanh, rồi khởi tạo lại.`;
+    case 'diverged': return L('Loss bùng nổ: learning rate quá lớn, mỗi bước nhảy quá xa và văng khỏi thung lũng. Giảm η rồi bấm Khởi tạo lại.',
+      'The loss blew up: the learning rate is too large, so each step jumps too far and flies out of the valley. Lower η, then press Reset.');
+    case 'idle': return L('Bấm ▶ Chạy để mạng bắt đầu học, hoặc "Bước +1" để đi từng bước một.', 'Press ▶ Run to start training, or "Step +1" to go one step at a time.');
+    case 'dead': return L(`Loss kẹt ở ${fmtG(last)} và chỉ đúng ${pct}%: mạng đoán cùng một xác suất cho mọi điểm (khi hai lớp bằng nhau, loss đó là ln 2 = 0.693). Thường là do learning rate quá lớn làm mọi ReLU "chết" (luôn ra 0). Giảm η, đổi sang tanh, rồi khởi tạo lại.`,
+      `The loss is stuck at ${fmtG(last)} with only ${pct}% right: the network gives every point the same probability (with two equal classes that loss is ln 2 = 0.693). Usually a learning rate so large that every ReLU has "died" (always outputs 0). Lower η, switch to tanh, then reset.`);
     case 'overfitting': {
       const k = lab.test.indexOf(Math.min(...lab.test));
-      return `Overfitting: mạng đang học thuộc lòng tập train, kể cả những nhãn nhiễu. Loss train vẫn giảm (${fmtG(last)}) nhưng loss test đã tăng từ ${fmtG(lab.test[k])} ở bước ${k} lên ${fmtG(lab.test.at(-1))}, và tập test chỉ đúng ${tpct}%. Thử tăng weight decay, giảm số neuron, hoặc dừng sớm quanh bước ${k}.`;
+      return L(`Overfitting: mạng đang học thuộc lòng tập train, kể cả những nhãn nhiễu. Loss train vẫn giảm (${fmtG(last)}) nhưng loss test đã tăng từ ${fmtG(lab.test[k])} ở bước ${k} lên ${fmtG(lab.test.at(-1))}, và tập test chỉ đúng ${tpct}%. Thử tăng weight decay, giảm số neuron, hoặc dừng sớm quanh bước ${k}.`,
+        `Overfitting: the network is memorizing the training set, noisy labels included. The training loss still falls (${fmtG(last)}) but the test loss has risen from ${fmtG(lab.test[k])} at step ${k} to ${fmtG(lab.test.at(-1))}, and only ${tpct}% of the test set is right. Try more weight decay, fewer neurons, or stopping early around step ${k}.`);
     }
-    case 'solved': return `Đã tách đúng ${pct}% tập train sau ${n} bước (tập test: ${tpct}%). Thử bộ dữ liệu khó hơn, thêm nhiễu nhãn, hoặc so với bộ tối ưu khác.`;
-    case 'oscillating': return 'Loss dao động lên xuống: learning rate hơi lớn, bước đi vượt qua đáy rồi quay lại. Giảm η một nấc.';
-    case 'slow': return 'Loss gần như không giảm: learning rate quá nhỏ, hoặc mạng quá nhỏ cho bộ dữ liệu này. Tăng η hoặc số neuron.';
-    case 'plateau': return `Loss đã chững lại ở ${fmtG(last)} (đúng ${pct}%): có thể mạng không đủ neuron để vẽ ranh giới này. Tăng số neuron rồi khởi tạo lại.`;
-    default: return `Đang học: loss train giảm từ ${fmtG(L0)} xuống ${fmtG(last)} sau ${n} bước (đúng ${pct}% tập train, ${tpct}% tập test).`;
+    case 'solved': return L(`Đã tách đúng ${pct}% tập train sau ${n} bước (tập test: ${tpct}%). Thử bộ dữ liệu khó hơn, thêm nhiễu nhãn, hoặc so với bộ tối ưu khác.`,
+      `${pct}% of the training set separated after ${n} steps (test set: ${tpct}%). Try a harder dataset, add label noise, or compare with another optimizer.`);
+    case 'oscillating': return L('Loss dao động lên xuống: learning rate hơi lớn, bước đi vượt qua đáy rồi quay lại. Giảm η một nấc.',
+      'The loss swings up and down: the learning rate is a little too large, so each step overshoots the bottom and comes back. Lower η by one notch.');
+    case 'slow': return L('Loss gần như không giảm: learning rate quá nhỏ, hoặc mạng quá nhỏ cho bộ dữ liệu này. Tăng η hoặc số neuron.',
+      'The loss barely moves: the learning rate is too small, or the network too small for this dataset. Raise η or the number of neurons.');
+    case 'plateau': return L(`Loss đã chững lại ở ${fmtG(last)} (đúng ${pct}%): có thể mạng không đủ neuron để vẽ ranh giới này. Tăng số neuron rồi khởi tạo lại.`,
+      `The loss has levelled off at ${fmtG(last)} (${pct}% right): the network may not have enough neurons to draw this boundary. Add neurons, then reset.`);
+    default: return L(`Đang học: loss train giảm từ ${fmtG(L0)} xuống ${fmtG(last)} sau ${n} bước (đúng ${pct}% tập train, ${tpct}% tập test).`,
+      `Learning: the training loss went from ${fmtG(L0)} to ${fmtG(last)} in ${n} steps (${pct}% of the training set right, ${tpct}% of the test set).`);
   }
 }
 function labOut() {
   const h = lab.hist, t = lab.test, n = h.length - 1, every = Math.ceil(h.length / 300), pct = v => `${Math.round(v * 100)}%`;
   const xs = h.map((_, i) => i).filter(i => i === 0 || (n - i) % every === 0); // every k-th step counted back from the latest, so the chart ends where the stats are
-  return `<p class="lab-stats"><span>Bước <b>${n}</b></span><span>Loss train <b>${fmtG(h.at(-1))}</b> · test <b>${fmtG(t.at(-1))}</b></span><span>Đúng train <b>${pct(lab.acc)}</b> · test <b>${pct(lab.testAcc)}</b></span></p>`
-    + (xs.length > 1 ? lineChart({ what: 'Loss', series: [xs.map(i => h[i]), xs.map(i => t[i])], names: ['Train', 'Test'], unit: 'bước', xLabel: 'số bước huấn luyện →', xs }) : '')
+  return `<p class="lab-stats"><span>${L('Bước', 'Step')} <b>${n}</b></span><span>${L('Loss train', 'Loss: train')} <b>${fmtG(h.at(-1))}</b> · test <b>${fmtG(t.at(-1))}</b></span><span>${L('Đúng train', 'Right: train')} <b>${pct(lab.acc)}</b> · test <b>${pct(lab.testAcc)}</b></span></p>`
+    + (xs.length > 1 ? lineChart({ what: 'Loss', series: [xs.map(i => h[i]), xs.map(i => t[i])], names: ['Train', 'Test'], unit: L('bước', 'steps'), xLabel: L('số bước huấn luyện →', 'training steps →'), xs }) : '')
     + `<p class="reading"><span>${labAdvice()}</span></p>`;
 }
 const labPick = (key, opts) => opts.map(([v, label]) => `<button type="button" data-labset="${key}" data-val="${v}" aria-pressed="${lab[key] === v}">${label}</button>`).join('');
 const labSlide = (key, label, max, min = 0) => `<label class="sl" for="lab-${key}"><span>${label}<output id="o-lab-${key.toLowerCase()}">${LAB_SHOW[key](lab[key])}</output></span><input type="range" id="lab-${key}" data-labkey="${key}" min="${min}" max="${max}" step="1" value="${lab[key]}"></label>`;
-const labSection = () => `<section class="lab"><h3>Phòng thí nghiệm huấn luyện</h3>
-  <p class="kids-hint">Mạng 2 → H → H → 2 train ngay trong trang trên 200 điểm (tập train), backprop viết tay (đã đối chiếu với gradient tính bằng sai phân). 200 điểm khác cùng hình dạng, nhãn không nhiễu, là tập test: mạng không học từ chúng, chỉ dùng để đo xem nó có tổng quát hoá được không. Nền màu là xác suất mạng dự đoán: hồng là lớp 1, xanh là lớp 0; điểm có viền đậm là điểm đang bị đoán sai. Heatmap trên các khối 3D là trọng số thật, đổi theo từng bước.</p>
+const labRunLabel = () => lab.running ? L('❚❚ Dừng', '❚❚ Pause') : L('▶ Chạy', '▶ Run');
+const labSection = () => `<section class="lab"><h3>${L('Phòng thí nghiệm huấn luyện', 'Training lab')}</h3>
+  <p class="kids-hint">${L('Mạng 2 → H → H → 2 train ngay trong trang trên 200 điểm (tập train), backprop viết tay (đã đối chiếu với gradient tính bằng sai phân). 200 điểm khác cùng hình dạng, nhãn không nhiễu, là tập test: mạng không học từ chúng, chỉ dùng để đo xem nó có tổng quát hoá được không. Nền màu là xác suất mạng dự đoán: hồng là lớp 1, xanh là lớp 0; điểm có viền đậm là điểm đang bị đoán sai. Heatmap trên các khối 3D là trọng số thật, đổi theo từng bước.',
+    'A 2 → H → H → 2 network trains right in the page on 200 points (the training set), with hand-written backprop (checked against gradients from finite differences). 200 other points of the same shape, with clean labels, are the test set: the network never learns from them, they only measure whether it generalizes. The background is the probability the network predicts: pink is class 1, blue class 0; a point with a dark ring is one it currently gets wrong. The heatmaps on the 3D blocks are the real weights, changing at every step.')}</p>
   <div class="live-ctl">
-    <div class="vocab"><span>Dữ liệu:</span>${labPick('data', TRAIN.DATASETS.map(d => [d, d]))}</div>
-    <div class="vocab"><span>Kích hoạt:</span>${labPick('act', [['relu', 'ReLU'], ['tanh', 'tanh']])}</div>
-    <div class="vocab"><span>Bộ tối ưu:</span>${labPick('opt', [['sgd', 'SGD'], ['momentum', 'Momentum'], ['adam', 'Adam']])}</div>
-    <div class="vocab"><span>Batch:</span>${labPick('batch', [['all', 'Cả 200 điểm'], ['32', '32'], ['8', '8']])}</div>
+    <div class="vocab"><span>${L('Dữ liệu:', 'Data:')}</span>${labPick('data', TRAIN.DATASETS.map(d => [d, gloss(d)]))}</div>
+    <div class="vocab"><span>${L('Kích hoạt:', 'Activation:')}</span>${labPick('act', [['relu', 'ReLU'], ['tanh', 'tanh']])}</div>
+    <div class="vocab"><span>${L('Bộ tối ưu:', 'Optimizer:')}</span>${labPick('opt', [['sgd', 'SGD'], ['momentum', 'Momentum'], ['adam', 'Adam']])}</div>
+    <div class="vocab"><span>Batch:</span>${labPick('batch', [['all', L('Cả 200 điểm', 'All 200 points')], ['32', '32'], ['8', '8']])}</div>
     ${labSlide('lr', 'Learning rate η', LRS.length - 1)}
-    ${labSlide('H', 'Số neuron mỗi lớp ẩn', 16, 2)}
-    ${labSlide('noise', 'Nhiễu nhãn của tập train', NOISES.length - 1)}
+    ${labSlide('H', L('Số neuron mỗi lớp ẩn', 'Neurons per hidden layer'), 16, 2)}
+    ${labSlide('noise', L('Nhiễu nhãn của tập train', 'Label noise in the training set'), NOISES.length - 1)}
     ${labSlide('decay', 'Weight decay λ', DECAYS.length - 1)}
-    <div class="lab-btns"><button type="button" class="labbtn primary" data-lab="run">${lab.running ? '❚❚ Dừng' : '▶ Chạy'}</button><button type="button" class="labbtn" data-lab="step">Bước +1</button><button type="button" class="labbtn" data-lab="reset">Khởi tạo lại</button></div>
-    <div class="vocab"><span>Vẽ điểm của:</span>${labPick('view', [['train', 'Tập train'], ['test', 'Tập test']])}</div>
+    <div class="lab-btns"><button type="button" class="labbtn primary" data-lab="run">${labRunLabel()}</button><button type="button" class="labbtn" data-lab="step">${L('Bước +1', 'Step +1')}</button><button type="button" class="labbtn" data-lab="reset">${L('Khởi tạo lại', 'Reset')}</button></div>
+    <div class="vocab"><span>${L('Vẽ điểm của:', 'Show the points of:')}</span>${labPick('view', [['train', L('Tập train', 'Training set')], ['test', L('Tập test', 'Test set')]])}</div>
   </div>
-  <canvas id="lab-canvas" width="280" height="280" role="img" aria-label="Ranh giới quyết định của mạng và 200 điểm dữ liệu"></canvas>
+  <canvas id="lab-canvas" width="280" height="280" role="img" aria-label="${L('Ranh giới quyết định của mạng và 200 điểm dữ liệu', "The network's decision boundary and 200 data points")}"></canvas>
   <div class="lab-out" aria-live="${lab.running ? 'off' : 'polite'}">${labOut()}</div></section>`;
 
 function labUI() {
@@ -1110,7 +1153,7 @@ function labUI() {
     out.innerHTML = labOut();
     rehover();
   }
-  const run = panel.querySelector('[data-lab="run"]'), label = lab.running ? '❚❚ Dừng' : '▶ Chạy';
+  const run = panel.querySelector('[data-lab="run"]'), label = labRunLabel();
   if (run && run.textContent !== label) run.textContent = label;
   if (showsDemo(level, 'lab')) paintLive(level);
 }
@@ -1163,20 +1206,23 @@ const smpSlide = (key, label, values) => `<label class="sl" for="smp-${key}"><sp
 function smpOut() {
   const d = smpDist(), n = smp.counts.reduce((a, b) => a + b, 0), T = TEMPS[smp.T];
   const order = d.probs.map((_, i) => i).sort((a, b) => d.probs[b] - d.probs[a]), top = order[0], k = d.keep.filter(Boolean).length;
-  const shape = T < 1 ? 'T < 1 kéo các logit xa nhau: phân bố nhọn hơn, càng gần việc luôn chọn từ chắc nhất (greedy).'
-    : T > 1 ? 'T > 1 làm phẳng phân bố: từ hiếm có cơ hội hơn, câu đa dạng hơn nhưng dễ lạc đề.' : 'T = 1 dùng nguyên phân bố mà mô hình đưa ra.';
-  return `<p class="smp-prompt">${SAMPLE.PROMPT} <b>${smp.last === null ? '___' : SAMPLE.TOKENS[smp.last]}</b></p>`
-    + `<ol class="dist" aria-label="Xác suất của từ kế tiếp sau top-p; cột cuối là số lần đã bốc">` + order.map(i => `<li class="drow${d.keep[i] ? '' : ' cut'}">`
-      + `<span class="dw">${SAMPLE.TOKENS[i]}</span><span class="dbar"><i class="pre" style="width: ${(d.probs[i] * 100).toFixed(1)}%"></i><i style="width: ${(d.final[i] * 100).toFixed(1)}%"></i></span>`
-      + `<span class="dp">${d.keep[i] ? smpPct(d.final[i]) : 'cắt'}</span><span class="dn">${n ? smp.counts[i] : ''}</span></li>`).join('') + '</ol>'
-    + `<p class="reading"><span>Top-p ${TOPPS[smp.p]} giữ ${k}/${order.length} từ, chiếm ${smpPct(d.mass)} xác suất trước khi cắt; "${SAMPLE.TOKENS[top]}" chắc nhất với ${smpPct(d.final[top])} sau khi chuẩn hoá lại. ${shape}${n ? ` Đã bốc ${n} lần.` : ''}</span></p>`;
+  const shape = T < 1 ? L('T < 1 kéo các logit xa nhau: phân bố nhọn hơn, càng gần việc luôn chọn từ chắc nhất (greedy).', 'T < 1 pulls the logits apart: a sharper distribution, closer and closer to always taking the likeliest word (greedy).')
+    : T > 1 ? L('T > 1 làm phẳng phân bố: từ hiếm có cơ hội hơn, câu đa dạng hơn nhưng dễ lạc đề.', 'T > 1 flattens the distribution: rare words get more of a chance, so the text is more varied but drifts off topic more easily.')
+    : L('T = 1 dùng nguyên phân bố mà mô hình đưa ra.', 'T = 1 uses the distribution exactly as the model gives it.');
+  return `<p class="smp-prompt">${gloss(SAMPLE.PROMPT)} <b>${smp.last === null ? '___' : gloss(SAMPLE.TOKENS[smp.last])}</b></p>`
+    + `<ol class="dist" aria-label="${L('Xác suất của từ kế tiếp sau top-p; cột cuối là số lần đã bốc', 'Probability of the next word after top-p; the last column counts the draws')}">` + order.map(i => `<li class="drow${d.keep[i] ? '' : ' cut'}">`
+      + `<span class="dw">${gloss(SAMPLE.TOKENS[i])}</span><span class="dbar"><i class="pre" style="width: ${(d.probs[i] * 100).toFixed(1)}%"></i><i style="width: ${(d.final[i] * 100).toFixed(1)}%"></i></span>`
+      + `<span class="dp">${d.keep[i] ? smpPct(d.final[i]) : L('cắt', 'cut')}</span><span class="dn">${n ? smp.counts[i] : ''}</span></li>`).join('') + '</ol>'
+    + `<p class="reading"><span>${L(`Top-p ${TOPPS[smp.p]} giữ ${k}/${order.length} từ, chiếm ${smpPct(d.mass)} xác suất trước khi cắt; "${SAMPLE.TOKENS[top]}" chắc nhất với ${smpPct(d.final[top])} sau khi chuẩn hoá lại.`,
+      `Top-p ${TOPPS[smp.p]} keeps ${k}/${order.length} words, holding ${smpPct(d.mass)} of the probability before the cut; "${gloss(SAMPLE.TOKENS[top])}" is the likeliest at ${smpPct(d.final[top])} after renormalizing.`)} ${shape}${n ? L(` Đã bốc ${n} lần.`, ` ${n} draws so far.`) : ''}</span></p>`;
 }
-const smpSection = () => `<section class="live sample"><h3>Số chạy thật</h3>
-  <p class="kids-hint">Logit đồ chơi, đặt tay cho từ đứng sau "${SAMPLE.PROMPT}". Mỗi token ở đây là một từ cho dễ đọc; LLaMA thật chọn trong 128 256 token. Vạch nhạt là xác suất trước khi cắt, vạch đậm là sau top-p. Kéo T và top-p: bảng và khối 3D đổi ngay.</p>
+const smpSection = () => `<section class="live sample"><h3>${L('Số chạy thật', 'Live numbers')}</h3>
+  <p class="kids-hint">${L(`Logit đồ chơi, đặt tay cho từ đứng sau "${SAMPLE.PROMPT}". Mỗi token ở đây là một từ cho dễ đọc; LLaMA thật chọn trong 128 256 token. Vạch nhạt là xác suất trước khi cắt, vạch đậm là sau top-p. Kéo T và top-p: bảng và khối 3D đổi ngay.`,
+    `Toy logits, set by hand, for the word after "${gloss(SAMPLE.PROMPT)}" (a Vietnamese prompt, glossed). Each token here is one word, to keep it readable; the real LLaMA chooses among 128,256 tokens. The pale bar is the probability before the cut, the dark bar after top-p. Drag T and top-p: the table and the 3D blocks change at once.`)}</p>
   <div class="live-ctl">
-    ${smpSlide('T', 'Nhiệt độ T', TEMPS)}
+    ${smpSlide('T', L('Nhiệt độ T', 'Temperature T'), TEMPS)}
     ${smpSlide('p', 'Top-p', TOPPS)}
-    <div class="lab-btns"><button type="button" class="labbtn primary" data-smpdo="draw">Bốc 1 từ</button><button type="button" class="labbtn" data-smpdo="draw100">Bốc 100 lần</button><button type="button" class="labbtn" data-smpdo="clear">Xoá đếm</button></div>
+    <div class="lab-btns"><button type="button" class="labbtn primary" data-smpdo="draw">${L('Bốc 1 từ', 'Draw 1 word')}</button><button type="button" class="labbtn" data-smpdo="draw100">${L('Bốc 100 lần', 'Draw 100 times')}</button><button type="button" class="labbtn" data-smpdo="clear">${L('Xoá đếm', 'Clear the counts')}</button></div>
   </div>
   <div class="smp-out">${smpOut()}</div></section>`;
 function smpRefresh() {
@@ -1205,7 +1251,8 @@ function smpDo(a) {
 const cnn = { sample: 7, strokes: [], pixels: null, out: null, t: 0 };
 const cnnInk = Object.assign(document.createElement('canvas'), { width: 140, height: 140 }); // the drawing, white on black, read back as pixels
 const CNN_BRUSH = 0.08; // stroke width / pad width: about MNIST's stroke for a digit drawn across most of the pad
-const CNN_MAPS = { c1: 'Activation thật của 8 kênh sau ReLU, 26×26', p1: '8 kênh sau max-pool, 13×13', c2: 'Activation thật của 16 kênh sau ReLU, 11×11', p2: '16 kênh sau max-pool, 5×5: đây là 400 số đưa vào lớp Linear' };
+const CNN_MAPS = L({ c1: 'Activation thật của 8 kênh sau ReLU, 26×26', p1: '8 kênh sau max-pool, 13×13', c2: 'Activation thật của 16 kênh sau ReLU, 11×11', p2: '16 kênh sau max-pool, 5×5: đây là 400 số đưa vào lớp Linear' },
+  { c1: 'Real activations of the 8 channels after ReLU, 26×26', p1: 'The 8 channels after max-pooling, 13×13', c2: 'Real activations of the 16 channels after ReLU, 11×11', p2: 'The 16 channels after max-pooling, 5×5: these are the 400 numbers fed to the Linear layer' });
 const strokePath = (g, S) => { for (const st of cnn.strokes) { g.beginPath(); st.forEach(([x, y], k) => k ? g.lineTo(x * S, y * S) : g.moveTo(x * S, y * S)); if (st.length === 1) g.lineTo(st[0][0] * S + 0.01, st[0][1] * S); g.stroke(); } };
 function cnnSet() { // the network's input and every layer's output, from the current sample or drawing
   if (cnn.sample !== null) cnn.pixels = CNN.decode(MNIST_CNN.samples[cnn.sample].pixels);
@@ -1257,15 +1304,16 @@ function cnnImage(stage) {
   maps.forEach((M, k) => { cnnPaint(tile, M, max, stage === 'in' ? theme.fg : theme.chartA); g.drawImage(tile, 4 + (k % cols) * cell + 2, y0 + Math.floor(k / cols) * cell + 2, cell - 4, cell - 4); });
   return c;
 }
-const cnnSection = stage => `<section class="live cnn"><h3>Số chạy thật</h3>
-  <p class="kids-hint">Mạng đã train thật trên MNIST, đúng ${(MNIST_CNN.test_acc * 100).toFixed(2)}% trên 10 000 ảnh test, và chạy ngay trong trang. Vẽ một chữ số bằng chuột hoặc ngón tay, hoặc chọn một ảnh MNIST mẫu: khối 3D và bảng dưới đây hiện activation thật của mạng.</p>
+const cnnSection = stage => `<section class="live cnn"><h3>${L('Số chạy thật', 'Live numbers')}</h3>
+  <p class="kids-hint">${L(`Mạng đã train thật trên MNIST, đúng ${(MNIST_CNN.test_acc * 100).toFixed(2)}% trên 10 000 ảnh test, và chạy ngay trong trang. Vẽ một chữ số bằng chuột hoặc ngón tay, hoặc chọn một ảnh MNIST mẫu: khối 3D và bảng dưới đây hiện activation thật của mạng.`,
+    `A network really trained on MNIST, ${(MNIST_CNN.test_acc * 100).toFixed(2)}% right on the 10,000 test images, running right in the page. Draw a digit with the mouse or a finger, or pick an MNIST sample: the 3D blocks and the panel below show the network's real activations.`)}</p>
   <div class="cnn-io">
-    <canvas id="cnn-pad" width="280" height="280" aria-label="Ô vẽ chữ số: kéo chuột hoặc ngón tay để vẽ"></canvas>
-    <div><div class="mat-title">Mạng nhìn thấy</div><canvas id="cnn-input" width="28" height="28" role="img" aria-label="Ảnh 28×28 đưa vào mạng"></canvas><p class="cnn-guess"></p></div>
+    <canvas id="cnn-pad" width="280" height="280" aria-label="${L('Ô vẽ chữ số: kéo chuột hoặc ngón tay để vẽ', 'Drawing pad: drag the mouse or a finger to draw a digit')}"></canvas>
+    <div><div class="mat-title">${L('Mạng nhìn thấy', 'The network sees')}</div><canvas id="cnn-input" width="28" height="28" role="img" aria-label="${L('Ảnh 28×28 đưa vào mạng', 'The 28×28 image fed to the network')}"></canvas><p class="cnn-guess"></p></div>
   </div>
-  <div class="vocab"><span>Ảnh MNIST mẫu:</span>${[...Array(10).keys()].map(d => `<button type="button" data-cnnsample="${d}" aria-pressed="${cnn.sample === d}">${d}</button>`).join('')}<button type="button" data-cnndo="clear">Xoá</button></div>
+  <div class="vocab"><span>${L('Ảnh MNIST mẫu:', 'MNIST samples:')}</span>${[...Array(10).keys()].map(d => `<button type="button" data-cnnsample="${d}" aria-pressed="${cnn.sample === d}">${d}</button>`).join('')}<button type="button" data-cnndo="clear">${L('Xoá', 'Clear')}</button></div>
   <div class="cnn-out"></div>
-  ${CNN_MAPS[stage] ? `<div class="mat-title" style="margin-top: 12px">${CNN_MAPS[stage]}</div><div class="cnn-maps" data-stage="${stage}">${(cnn.out?.[stage] ?? [...Array(stage[1] === '1' ? 8 : 16)]).map((_, k) => `<canvas title="kênh ${k + 1}" aria-label="kênh ${k + 1}"></canvas>`).join('')}</div>` : ''}
+  ${CNN_MAPS[stage] ? `<div class="mat-title" style="margin-top: 12px">${CNN_MAPS[stage]}</div><div class="cnn-maps" data-stage="${stage}">${(cnn.out?.[stage] ?? [...Array(stage[1] === '1' ? 8 : 16)]).map((_, k) => `<canvas title="${L('kênh', 'channel')} ${k + 1}" aria-label="${L('kênh', 'channel')} ${k + 1}"></canvas>`).join('')}</div>` : ''}
 </section>`;
 function cnnRefresh() { // paints the panel's canvases and text, then the 3D sprites
   const sec = panel.querySelector('section.cnn');
@@ -1276,8 +1324,8 @@ function cnnRefresh() { // paints the panel's canvases and text, then the 3D spr
     else { Object.assign(g, { strokeStyle: theme.fg.getStyle(), lineWidth: S * CNN_BRUSH, lineCap: 'round', lineJoin: 'round' }); strokePath(g, S); }
     cnnPaint(sec.querySelector('#cnn-input'), cnnGrid(cnn.pixels), 1, theme.fg);
     const o = cnn.out, top = o && o.probs.indexOf(Math.max(...o.probs)), pct = v => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
-    sec.querySelector('.cnn-guess').innerHTML = o ? `Mạng đoán: <b>${top}</b> (${pct(o.probs[top])})` : 'Vẽ một chữ số vào ô bên trái.';
-    sec.querySelector('.cnn-out').innerHTML = o ? `<ol class="dist" aria-label="Xác suất của từng chữ số">${o.probs.map((v, d) => `<li class="drow${d === top ? '' : ' cut'}"><span class="dw">${d}</span><span class="dbar"><i style="width: ${(v * 100).toFixed(1)}%"></i></span><span class="dp">${pct(v)}</span><span class="dn"></span></li>`).join('')}</ol>` : '';
+    sec.querySelector('.cnn-guess').innerHTML = o ? `${L('Mạng đoán', 'The network says')}: <b>${top}</b> (${pct(o.probs[top])})` : L('Vẽ một chữ số vào ô bên trái.', 'Draw a digit in the box on the left.');
+    sec.querySelector('.cnn-out').innerHTML = o ? `<ol class="dist" aria-label="${L('Xác suất của từng chữ số', 'Probability of each digit')}">${o.probs.map((v, d) => `<li class="drow${d === top ? '' : ' cut'}"><span class="dw">${d}</span><span class="dbar"><i style="width: ${(v * 100).toFixed(1)}%"></i></span><span class="dp">${pct(v)}</span><span class="dn"></span></li>`).join('')}</ol>` : '';
     sec.querySelectorAll('[data-cnnsample]').forEach(b => b.setAttribute('aria-pressed', String(cnn.sample === +b.dataset.cnnsample)));
     const maps = sec.querySelector('.cnn-maps'), stage = maps?.dataset.stage;
     if (maps && o) { const max = layerMax(o[stage]); maps.querySelectorAll('canvas').forEach((c, k) => cnnPaint(c, o[stage][k], max)); }
@@ -1328,27 +1376,29 @@ function syncOwners() {
 const esc =s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 // a panel section; `tool` (a button) sits on the heading's row, outside the content, so it can never cover it
 const sec = (h, body, tool) => body ? `<section>${tool ? `<div class="sec-head"><h3>${h}</h3>${tool}</div>` : `<h3>${h}</h3>`}${body}</section>` : '';
-const nameOf = nd => nd.tag || nd.name;
+const nameOf = nd => tr(nd.tag || nd.name);
 
 function renderPanel() {
   const nd = sel ? sel.node : path.at(-1), i = nd.info;
   window.MathJax?.typesetClear?.([panel]);
-  panel.innerHTML = (sel ? `<button class="back" type="button" data-act="back">← Về ${path.at(-1).name}</button>` : '')
-    + `<div class="eyebrow"><span class="chip" style="--c: var(--c-${cv(nd.cat)})">${CAT[nd.cat]}</span>${nd.repeat > 1 ? `<span class="rep">lặp ×${nd.repeat}</span>` : ''}<button class="linkbtn" type="button" data-act="link">Sao chép link</button></div>`
-    + `<h2>${nd.name}</h2>` + (nd.shape ? `<p class="shape">${nd.shape}</p>` : '') + `<p class="what">${i.what}</p>`
+  panel.innerHTML = (sel ? `<button class="back" type="button" data-act="back">${L('← Về', '← Back to')} ${tr(path.at(-1).name)}</button>` : '')
+    + `<div class="eyebrow"><span class="chip" style="--c: var(--c-${cv(nd.cat)})">${CAT[nd.cat]}</span>${nd.repeat > 1 ? `<span class="rep">${L('lặp', 'repeated')} ×${nd.repeat}</span>` : ''}<button class="linkbtn" type="button" data-act="link">${L('Sao chép link', 'Copy link')}</button></div>`
+    + `<h2>${tr(nd.name)}</h2>` + (nd.shape ? `<p class="shape">${tr(nd.shape)}</p>` : '')
+    + ([nd.name, i.what, i.why].some(untranslated) ? '<p class="untranslated">Not translated yet: this block shows its Vietnamese original.</p>' : '')
+    + `<p class="what">${tr(i.what)}</p>`
     + (nd.exp === 'train' ? labSection() : '') // the lab is the point of these blocks: controls before the formulas
-    + sec('Công thức', i.formula && i.formula.map(f => `<div class="math">\\[${f}\\]</div>`).join(''))
+    + sec(L('Công thức', 'Formula'), i.formula && i.formula.map(f => `<div class="math">\\[${tr(f)}\\]</div>`).join(''))
     + (LIVE[nd.live]?.section?.() ?? '')
     + (nd.exp && nd.exp !== 'train' ? expSection(nd.exp) : '')
-    + sec('Vì sao như vậy', i.why && `<p>${i.why}</p>`)
-    + sec('Ví dụ số', i.example && `<p>${i.example}</p>`)
-    + sec('Tham số', i.params && `<p>${i.params}</p>`)
-    + sec('Bên trong gồm', !sel && nd.children && `<p class="kids-hint">Nhấp một khối trong 3D hoặc chọn ở đây. Khối có dấu › còn mở tiếp được.</p><div class="kids">`
+    + sec(L('Vì sao như vậy', 'Why it works this way'), i.why && `<p>${tr(i.why)}</p>`)
+    + sec(L('Ví dụ số', 'Worked example'), i.example && `<p>${tr(i.example)}</p>`)
+    + sec(L('Tham số', 'Parameters'), i.params && `<p>${tr(i.params)}</p>`)
+    + sec(L('Bên trong gồm', 'Inside'), !sel && nd.children && `<p class="kids-hint">${L('Nhấp một khối trong 3D hoặc chọn ở đây. Khối có dấu › còn mở tiếp được.', 'Click a block in 3D or pick it here. Blocks marked › open further.')}</p><div class="kids">`
         + nd.children.map((k, j) => `<button class="kid" type="button" data-k="${j}"><i style="background: var(--c-${cv(k.cat)})"></i>${nameOf(k)}${k.repeat > 1 ? ` ×${k.repeat}` : ''}${k.children ? ' ›' : ''}</button>`).join('') + '</div>')
-    + sec('PyTorch', i.code && `<div class="code"><pre><code>${esc(i.code)}</code></pre></div>`, '<button class="copy" type="button" data-act="copy">Sao chép</button>')
-    + sec('Cũng xuất hiện ở', alsoIn(nd))
-    + sec('Nguồn', nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${r.t}</a>${r.note ? ` <span>(${r.note})</span>` : ''}</li>`).join('')}</ul>`)
-    + `<p class="feedback"><a href="${REPO}/issues/new?${new URLSearchParams({ template: 'feedback.yml', block: `${nd.name} (#${locCode()})` })}" target="_blank" rel="noopener">Thấy sai hoặc khó hiểu? Góp ý về khối này</a></p>`;
+    + sec('PyTorch', i.code && `<div class="code"><pre><code>${esc(tr(i.code))}</code></pre></div>`, `<button class="copy" type="button" data-act="copy">${L('Sao chép', 'Copy')}</button>`)
+    + sec(L('Cũng xuất hiện ở', 'Also appears in'), alsoIn(nd))
+    + sec(L('Nguồn', 'Sources'), nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${tr(r.t)}</a>${r.note ? ` <span>(${tr(r.note)})</span>` : ''}</li>`).join('')}</ul>`)
+    + `<p class="feedback"><a href="${REPO}/issues/new?${new URLSearchParams({ template: 'feedback.yml', block: `${nd.name} (#${locCode()})` })}" target="_blank" rel="noopener">${L('Thấy sai hoặc khó hiểu? Góp ý về khối này', 'Something wrong or unclear? Send feedback on this block')}</a></p>`;
   panel.scrollTop = 0;
   if (nd.exp === 'train') labDraw();
   LIVE[nd.live]?.mount?.(); // a demo whose panel has canvases paints them now
@@ -1378,21 +1428,21 @@ panel.addEventListener('click', e => {
   else if (b.dataset.act === 'link') copyLink(b);
   else if (b.dataset.act === 'back') select(null);
   else if (b.dataset.act === 'copy') {
-    const code = (sel ? sel.node : path.at(-1)).info.code;
+    const code = tr((sel ? sel.node : path.at(-1)).info.code);
     let p;
     try { p = navigator.clipboard.writeText(code); } catch { p = Promise.reject(); }
-    p.then(() => { b.textContent = 'Đã chép'; }, () => {
+    p.then(() => { b.textContent = L('Đã chép', 'Copied'); }, () => {
       const r = document.createRange();
       r.selectNodeContents(panel.querySelector('.code code'));
       getSelection().removeAllRanges(); getSelection().addRange(r);
-      b.textContent = 'Đã chọn, nhấn Ctrl/⌘ C';
+      b.textContent = L('Đã chọn, nhấn Ctrl/⌘ C', 'Selected: press Ctrl/⌘ C');
     });
   }
 });
 
 function ui() {
   crumbs.hidden = path.length < 2; // at the root the selected model tab already says where you are
-  crumbs.innerHTML =(path.length > 1 ? `<button class="up" type="button" data-d="${path.length - 2}" aria-label="Lên một cấp">↑</button>` : '')
+  crumbs.innerHTML =(path.length > 1 ? `<button class="up" type="button" data-d="${path.length - 2}" aria-label="${L('Lên một cấp', 'Up one level')}">↑</button>` : '')
     + path.map((nd, d) => d < path.length - 1 ? `<button type="button" data-d="${d}">${nameOf(nd)}</button>` : `<span aria-current="location">${nameOf(nd)}</span>`).join('<span class="sep" aria-hidden="true">›</span>');
   renderLegend();
   syncOwners();
@@ -1403,19 +1453,38 @@ function ui() {
 function renderLegend() {
   const cats = [...new Set(level.items.map(it => it.node.cat))];
   legend.innerHTML = cats.map(c => `<span><i style="background: var(--c-${cv(c)})"></i>${CAT[c]}</span>`).join('')
-    + (level.links.some(l => l.kind === 'skip' || l.kind === 'short') ? '<span><i class="skip"></i>Đường tắt residual</span>' : '')
-    + (level.links.some(l => l.kind === 'loop') ? '<span><i class="skip" style="background: var(--c-act)"></i>Vòng lặp: chạy lại mạng</span>' : '')
-    + (level.links.some(l => l.kind === 'concat') ? '<span><i class="skip" style="background: var(--c-embed)"></i>Đường tắt nối (concat)</span>' : '')
-    + '<span class="note">Khối dày: có trọng số hoặc đổi shape. Lát mỏng: giữ nguyên shape. Bóng mờ phía sau: lớp lặp lại.</span>';
-  if (backward) legend.innerHTML += '<span class="note">Chiều ngược: hạt là gradient, chạy từ loss về input. Ở mỗi phép cộng, gradient được chép nguyên sang cả hai nhánh, nên đường tắt (hạt to) mang nó thẳng về các lớp đầu.</span>';
+    + (level.links.some(l => l.kind === 'skip' || l.kind === 'short') ? `<span><i class="skip"></i>${L('Đường tắt residual', 'Residual shortcut')}</span>` : '')
+    + (level.links.some(l => l.kind === 'loop') ? `<span><i class="skip" style="background: var(--c-act)"></i>${L('Vòng lặp: chạy lại mạng', 'Loop: the network runs again')}</span>` : '')
+    + (level.links.some(l => l.kind === 'concat') ? `<span><i class="skip" style="background: var(--c-embed)"></i>${L('Đường tắt nối (concat)', 'Concatenating shortcut')}</span>` : '')
+    + `<span class="note">${L('Khối dày: có trọng số hoặc đổi shape. Lát mỏng: giữ nguyên shape. Bóng mờ phía sau: lớp lặp lại.', 'Thick block: has weights or changes shape. Thin slab: keeps the shape. Ghosts behind: repeated layers.')}</span>`;
+  if (backward) legend.innerHTML += L('<span class="note">Chiều ngược: hạt là gradient, chạy từ loss về input. Ở mỗi phép cộng, gradient được chép nguyên sang cả hai nhánh, nên đường tắt (hạt to) mang nó thẳng về các lớp đầu.</span>', '<span class="note">Backward: the particles are gradients, running from the loss to the input. At each addition the gradient is copied whole into both branches, so the shortcut (big particles) carries it straight back to the early layers.</span>');
 }
 
 let backward = false;
 const dirBtn = document.getElementById('dir');
+// the page's fixed texts, and the button that reloads the page in the other language (same block, ?lang=…)
+if (LANG === 'en') {
+  const set = (sel, attrs) => Object.assign(document.querySelector(sel), attrs);
+  set('#view', { ariaLabel: '3D model. Drag to rotate, scroll to zoom, click a block to open it.' });
+  set('#models', { ariaLabel: 'Choose a network' });
+  set('#find-q', { ariaLabel: 'Find a block' });
+  set('#find-list', { ariaLabel: 'Blocks found' });
+  set('#dir', { ariaLabel: 'Backward', title: 'Run the particles backwards, like gradients in backpropagation' });
+  document.querySelector('#dir .dir-label').textContent = ' Backward';
+  set('#crumbs', { ariaLabel: 'Where you are' });
+  document.querySelector('.hint .mouse').textContent = 'Click a block to take it apart · Drag to rotate · Scroll to zoom · Esc to go back';
+  document.querySelector('.hint .touch').textContent = 'Tap a block to take it apart · Drag with one finger to rotate · Pinch to zoom';
+  set('#lang', { textContent: 'VI', lang: 'vi', ariaLabel: 'Tiếng Việt' });
+}
+document.getElementById('lang').addEventListener('click', () => { // the hash survives a change of search, so the same block opens
+  const q = new URLSearchParams(location.search);
+  q.set('lang', L('en', 'vi'));
+  location.search = q;
+});
 dirBtn.addEventListener('click', () => { backward = !backward; dirBtn.setAttribute('aria-pressed', backward); renderLegend(); });
 
 crumbs.addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (b) goTo(+b.dataset.d); });
-document.getElementById('models').innerHTML = Object.entries(MODELS).map(([k, m]) => `<button type="button" id="m-${k}" data-model="${k}" aria-pressed="false">${m.label}</button>`).join('');
+document.getElementById('models').innerHTML = Object.entries(MODELS).map(([k, m]) => `<button type="button" id="m-${k}" data-model="${k}" aria-pressed="false">${tr(m.label)}</button>`).join('');
 document.querySelectorAll('[data-model]').forEach(b => b.addEventListener('click', () => { if (!busy && path[0] !== MODELS[b.dataset.model]) enter(b.dataset.model); }));
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 addEventListener('keydown', e => {
@@ -1460,8 +1529,8 @@ function copyLink(b) {
   const url = (ARTIFACT_URL || location.href.split('#')[0]) + '#' + locCode();
   let p;
   try { p = navigator.clipboard.writeText(url); } catch { p = Promise.reject(); }
-  p.then(() => { b.textContent = 'Đã chép link'; }, () => {
-    b.insertAdjacentHTML('afterend', `<input class="linkout" readonly value="${url}" aria-label="Link tới khối này">`);
+  p.then(() => { b.textContent = L('Đã chép link', 'Link copied'); }, () => {
+    b.insertAdjacentHTML('afterend', `<input class="linkout" readonly value="${url}" aria-label="${L('Link tới khối này', 'Link to this block')}">`);
     b.nextElementSibling.select();
   });
 }
@@ -1472,16 +1541,16 @@ function alsoIn(nd) {
   const here = modelKey() + '|' + nd.name;
   return labels.map(label => {
     const gs = groups(INDEX.filter(e => CONCEPTS[label].includes(e.nd.name)), e => e.key + '|' + e.nd.name).filter(g => g.key + '|' + g.nd.name !== here);
-    return gs.length ? `<p class="kids-hint">${label}</p><div class="xlinks">${gs.slice(0, 12).map(g => `<button type="button" class="xl" data-jump="${g.key}.${g.idx.join('.')}"><b>${MODELS[g.key].label}</b> ${g.trail.slice(1).join(' › ')}${g.n > 1 ? ` <span>×${g.n}</span>` : ''}</button>`).join('')}</div>` : '';
+    return gs.length ? `<p class="kids-hint">${tr(label)}</p><div class="xlinks">${gs.slice(0, 12).map(g => `<button type="button" class="xl" data-jump="${g.key}.${g.idx.join('.')}"><b>${tr(MODELS[g.key].label)}</b> ${g.trail.slice(1).map(tr).join(' › ')}${g.n > 1 ? ` <span>×${g.n}</span>` : ''}</button>`).join('')}</div>` : '';
   }).join('');
 }
 
 // search: accent-insensitive ("chuan hoa" finds "Chuẩn hoá"), over names, categories and concepts
 const fold = s => s.normalize('NFD').replace(/\p{M}/gu, '').replace(/[Đđ]/g, 'd').toLowerCase(); // \p{M} = every combining accent mark
 const SEARCH = groups(INDEX, e => e.key + '|' + e.nd.name + '|' + e.trail.at(-2)).map(g => ({ ...g,
-  name: fold(g.nd.name + ' ' + (g.nd.tag || '')), concept: fold((CONCEPT_OF[g.nd.name] || []).join(' ')), cat: fold(CAT[g.nd.cat]) }));
+  name: fold(g.nd.name + ' ' + (g.nd.tag || '') + (EN ? ' ' + tr(g.nd.name) : '')), concept: fold((CONCEPT_OF[g.nd.name] || []).map(c => c + (EN ? ' ' + tr(c) : '')).join(' ')), cat: fold(CAT[g.nd.cat]) })); // English names are searchable too
 const findQ = document.getElementById('find-q'), findList = document.getElementById('find-list'), findBox = findQ.parentElement;
-findQ.placeholder = `Tìm khối… (${isMac ? '⌘F' : 'Ctrl F'})`;
+findQ.placeholder = `${L('Tìm khối…', 'Search…')} (${isMac ? '⌘F' : 'Ctrl F'})`;
 findQ.setAttribute('aria-keyshortcuts', isMac ? 'Meta+F' : 'Control+F');
 let findRes = [], findAt = 0;
 function showList(on) {
@@ -1498,8 +1567,8 @@ function renderFind() {
     .filter(x => x.r < 9).sort((a, b) => a.r - b.r || a.s.trail.length - b.s.trail.length).slice(0, 40).map(x => x.s);
   findAt = 0;
   findList.innerHTML = findRes.length ? findRes.map((s, i) => `<button type="button" role="option" id="fr-${i}" class="fr" data-jump="${s.key}.${s.idx.join('.')}" aria-selected="${i === 0}">`
-    + `<span class="fr-name">${s.nd.name}${s.n > 1 ? ` <i>×${s.n}</i>` : ''}</span><span class="fr-trail"><b>${MODELS[s.key].label}</b>${s.trail.length > 2 ? ' › ' + s.trail.slice(1, -1).join(' › ') : ''}</span></button>`).join('')
-    : '<p class="finder-empty">Không có khối nào khớp. Thử tên khối, khái niệm hoặc loại, có dấu hay không dấu đều được: "chuan hoa", "residual", "RoPE".</p>';
+    + `<span class="fr-name">${tr(s.nd.name)}${s.n > 1 ? ` <i>×${s.n}</i>` : ''}</span><span class="fr-trail"><b>${tr(MODELS[s.key].label)}</b>${s.trail.length > 2 ? ' › ' + s.trail.slice(1, -1).map(tr).join(' › ') : ''}</span></button>`).join('')
+    : `<p class="finder-empty">${L('Không có khối nào khớp. Thử tên khối, khái niệm hoặc loại, có dấu hay không dấu đều được: "chuan hoa", "residual", "RoPE".', 'No block matches. Try a block name, a concept or a kind: "normalisation", "residual", "RoPE".')}</p>`;
   showList(!!f);
 }
 function markFind() {

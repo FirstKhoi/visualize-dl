@@ -4,6 +4,8 @@
 // Transformer-family blocks take a config c = { d, h, dk, dff, act, drop, noMask }.
 const MODELS = {};
 const R = String.raw;
+// a short, stable id for a piece of shown text (FNV-1a): the key of its translation in i18n/en.js
+const textId = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return (h >>> 0).toString(36); };
 const n = (name, cat, shape, info, more = {}) => ({ name, cat, shape, info, ...more });
 const fmt = v => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '\\,'); // inside \( \) only: MathJax leaves prose alone
 const fmtText = v => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0'); // the same in prose: a no-break space
