@@ -59,3 +59,17 @@ test('on phones no formula or grid pushes the panel sideways', async () => {
     await page.context().close();
   }
 });
+
+test('every panel ends with a feedback link that opens the GitHub form for that block', async () => {
+  for (const [link, name] of [['transformer', 'Transformer'], ['cnn.1', 'Conv 3×3, 8 kênh']]) {
+    const page = await app.open('#' + link);
+    const a = page.locator('.panel .feedback a');
+    assert.equal(await a.count(), 1, link);
+    const url = new URL(await a.getAttribute('href'));
+    assert.equal(url.origin + url.pathname, 'https://github.com/FirstKhoi/visualize-dl/issues/new');
+    assert.equal(url.searchParams.get('template'), 'feedback.yml');
+    assert.equal(url.searchParams.get('block'), `${name} (#${link})`); // the form's "block" field, prefilled
+    assert.equal(await a.getAttribute('target'), '_blank');
+    await page.context().close();
+  }
+});

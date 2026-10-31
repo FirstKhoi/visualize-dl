@@ -66,7 +66,8 @@ The tests run every script of the page in Node. That covers the self-checks insi
 index.html        page, 3D scene, panel, lab UI
 blocks.js         shared blocks (attention, FFN, norms…), paper list, concept index
 live.js           what really computes: toy attention, toy shifted windows, toy conv, gradient experiments, the trainable MLP, next-word sampling, toy diffusion
-models/*.js       one file per architecture
+models/*.js       one file per architecture (models/weights/: the trained CNN's weights)
+training/         how the CNN was trained (NumPy script, PyTorch version, results)
 tests/            node --test suites (tests/e2e: in the browser)
 docs/             copy for GitHub Pages, built by build-pages.sh
 ```
@@ -79,6 +80,10 @@ To add a model, create `models/<name>.js` (see `models/vit.js` for a short one) 
 2. Real trained models in the browser: ~~a small CNN on MNIST where you draw a digit~~ (done), a tiny Vietnamese GPT trained on *Truyện Kiều*.
 3. New architectures built from existing blocks: diffusion, CLIP, mixture of experts, VAE.
 4. English content.
+
+### How this was built
+
+I build this project with an AI pair programmer, [Claude Code](https://claude.com/claude-code). In each session I decide what to build next and why, review what comes out, check the content against the papers and my course material, and decide what gets merged. Most of the code, tests and texts were written in those sessions; the commits that came out of them carry a `Co-Authored-By: Claude` line. The CNN's weights come from `training/train_mnist_cnn.py`, which anyone can rerun and check.
 
 ---
 
@@ -125,6 +130,10 @@ npm run test:e2e    # chạy chính trang web trong Chromium headless, không c�
 Test chạy mọi script của trang trong Node. Chúng kiểm tra các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, U-Net, CLIP text encoder và VAE decoder của Stable Diffusion, và MLP của phòng thí nghiệm), cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
 
 Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là file ngắn), rồi thêm thẻ `<script>` vào `index.html`. Test sẽ tự nhận file mới.
+
+### Cách project được làm
+
+Tôi làm project này cùng một trợ lý lập trình AI, [Claude Code](https://claude.com/claude-code). Trong mỗi phiên, tôi quyết định làm gì tiếp theo và vì sao, đọc lại kết quả, đối chiếu nội dung với paper và tài liệu môn học, và quyết định cái gì được merge. Phần lớn code, test và nội dung được viết trong các phiên đó; các commit từ những phiên này có dòng `Co-Authored-By: Claude`. Trọng số của CNN đến từ `training/train_mnist_cnn.py`, ai cũng chạy lại và kiểm tra được.
 
 ---
 

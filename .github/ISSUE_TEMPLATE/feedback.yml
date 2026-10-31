@@ -1,0 +1,43 @@
+name: Góp ý · Feedback
+description: Một chỗ sai, khó hiểu, lỗi giao diện hoặc ý tưởng cho trang · Something wrong, confusing, broken, or an idea
+title: "[Góp ý] "
+labels: [feedback]
+body:
+  - type: markdown
+    attributes:
+      value: Cảm ơn bạn đã góp ý! Mỗi khối trong trang có link "Góp ý về khối này" điền sẵn ô bên dưới. · Thanks! Every block of the site has a "Góp ý về khối này" link that fills in the field below.
+  - type: input
+    id: block
+    attributes:
+      label: Khối nào? · Which block?
+      description: Tên khối và mã link, ví dụ "Softmax (#llm.4.2)"
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Loại góp ý · Kind
+      options:
+        - Nội dung sai · Wrong content
+        - Khó hiểu · Hard to understand
+        - Lỗi giao diện · Something broken
+        - Ý tưởng · Idea
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Chuyện gì xảy ra, hoặc bạn mong thấy gì? · What happened, or what did you expect?
+    validations:
+      required: true
+  - type: dropdown
+    id: background
+    attributes:
+      label: Bạn đã học deep learning tới đâu? · Your background
+      options:
+        - Mới bắt đầu · Just starting
+        - Đã học ít nhất một môn · Took at least one course
+        - Làm việc hoặc nghiên cứu ML · Work or research in ML
+  - type: input
+    id: device
+    attributes:
+      label: Thiết bị và trình duyệt · Device and browser
+      placeholder: ví dụ iPhone 13, Safari

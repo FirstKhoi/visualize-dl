@@ -144,6 +144,9 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .refs { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; }
 .refs a { color: var(--accent); }
 .refs span { color: var(--muted); }
+.feedback { margin-top: 26px !important; font-size: 13px; }
+.feedback a { color: var(--muted); }
+.feedback a:hover { color: var(--accent); }
 
 /* block search (Cmd+F / Ctrl+F): a compact field in the top bar that widens when used; results drop down only once you type */
 .search { position: relative; }
@@ -1344,7 +1347,8 @@ function renderPanel() {
         + nd.children.map((k, j) => `<button class="kid" type="button" data-k="${j}"><i style="background: var(--c-${cv(k.cat)})"></i>${nameOf(k)}${k.repeat > 1 ? ` ×${k.repeat}` : ''}${k.children ? ' ›' : ''}</button>`).join('') + '</div>')
     + sec('PyTorch', i.code && `<div class="code"><pre><code>${esc(i.code)}</code></pre></div>`, '<button class="copy" type="button" data-act="copy">Sao chép</button>')
     + sec('Cũng xuất hiện ở', alsoIn(nd))
-    + sec('Nguồn', nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${r.t}</a>${r.note ? ` <span>(${r.note})</span>` : ''}</li>`).join('')}</ul>`);
+    + sec('Nguồn', nd.ref && `<ul class="refs">${nd.ref.map(r => `<li><a href="${r.u}" target="_blank" rel="noopener">${r.t}</a>${r.note ? ` <span>(${r.note})</span>` : ''}</li>`).join('')}</ul>`)
+    + `<p class="feedback"><a href="${REPO}/issues/new?${new URLSearchParams({ template: 'feedback.yml', block: `${nd.name} (#${locCode()})` })}" target="_blank" rel="noopener">Thấy sai hoặc khó hiểu? Góp ý về khối này</a></p>`;
   panel.scrollTop = 0;
   if (nd.exp === 'train') labDraw();
   LIVE[nd.live]?.mount?.(); // a demo whose panel has canvases paints them now
@@ -1439,6 +1443,7 @@ function groups(entries, keyOf) {
   return [...m.values()];
 }
 const modelKey = () => Object.keys(MODELS).find(k => MODELS[k] === path[0]);
+const REPO = 'https://github.com/FirstKhoi/visualize-dl'; // feedback goes to this repository's issue form (.github/ISSUE_TEMPLATE/feedback.yml)
 const locCode = () => [modelKey(), ...path.slice(1).map((nd, d) => path[d].children.indexOf(nd)), ...(sel ? [path.at(-1).children.indexOf(sel.node)] : [])].join('.');
 const parseLoc = code => { const [k, ...rest] = String(code).split('.'); return MODELS[k] ? [k, rest.filter(s => /^\d+$/.test(s)).map(Number)] : null; };
 function saveLoc() { try { history.replaceState(null, '', '#' + locCode()); } catch { /* sandboxed history: the copy-link button still works */ } }
