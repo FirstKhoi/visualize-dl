@@ -11,6 +11,9 @@ npm test                                     # unit test (Node 22+, không cần
 npm ci && npx playwright install chromium    # một lần, cho test trình duyệt
 npm run test:e2e                             # test trong Chromium headless, chạy offline, ~90 s
 ./build-pages.sh                             # build lại docs/ — bắt buộc sau mọi thay đổi ở file của trang
+node scripts/audit-layout.mjs --fonts        # mở mọi khối ở 5 cỡ màn hình, báo chữ bị che, panel cuộn ngang, chữ bị cắt; vài phút
+node scripts/record-demo.mjs                 # quay lại media/demo.gif (cần ffmpeg)
+node scripts/i18n.mjs                        # bản tiếng Anh đã phủ được bao nhiêu
 ```
 
 Mở `index.html` trực tiếp bằng trình duyệt (`file://`) là chạy được: không có bước build. CI (`.github/workflows/ci.yml`) chạy cả hai bộ test, và fail nếu `docs/` khác với kết quả của `build-pages.sh`.
@@ -27,9 +30,11 @@ Mở `index.html` trực tiếp bằng trình duyệt (`file://`) là chạy đ�
 | `training/` | Script train bằng NumPy (nguồn của trọng số trong repo), bản PyTorch tương đương cho Colab, `results.json`. Dữ liệu MNIST tải về `training/data/` (gitignore) |
 | `i18n/en.js` | Bản tiếng Anh `EN_TEXT`: khoá là `textId(văn bản tiếng Việt)`. Chỉ tải khi `?lang=en` |
 | `scripts/i18n.mjs` | Độ phủ bản dịch theo tab; `missing <tab>` in ra các mục còn thiếu, điền sẵn tiếng Việt để dịch tại chỗ |
+| `scripts/audit-layout.mjs` | Kiểm tra bố cục panel trên mọi khối: `--size phone,phoneLand`, `--model swin,cnn`, `--lang en`, `--fonts` (font thật, cần mạng). Exit 1 nếu có lỗi. Chạy sau mọi thay đổi lớn về nội dung hoặc CSS của panel |
+| `scripts/record-demo.mjs` | Quay `media/demo.gif`: Transformer → attention, vẽ chữ số cho CNN, train lab. Mặc định tiếng Anh (`--lang vi` để quay bản tiếng Việt) |
 | `docs/` | Bản cho GitHub Pages do `build-pages.sh` sinh ra. Không sửa tay |
 | `tests/*.test.mjs` | Unit test. `tests/load.mjs` chạy các `<script src>` của `index.html` trong Node, biến `console.assert` thành lỗi thật |
-| `tests/e2e/` | Test bằng Playwright. `browser.mjs` lấy three.js từ `node_modules` (phiên bản phải khớp import map) và chặn mọi request ra mạng. MathJax mặc định được giả lập; test về bố cục mở trang với `app.open(hash, { mathjax: true })` để có công thức thật. Font luôn được giả lập |
+| `tests/e2e/` | Test bằng Playwright. `browser.mjs` lấy three.js từ `node_modules` (phiên bản phải khớp import map) và chặn mọi request ra mạng. MathJax mặc định được giả lập; test về bố cục mở trang với `app.open(hash, { mathjax: true })` để có công thức thật. Font được giả lập, trừ khi `{ fonts: true }` (chỉ các script trong `scripts/` dùng) |
 
 Script là classic script, không dùng ES module, để trang vẫn mở được qua `file://`. Các `const` ở cấp cao nhất của `blocks.js`/`live.js` là biến toàn cục mà `index.html` đọc trực tiếp.
 
@@ -89,27 +94,29 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - Nếu PR của branch đã merge: chạy `git fetch origin main && git checkout -B claude/charming-brown-ogcaqu origin/main`, rồi `git push --force-with-lease`.
 - Cuối commit message thêm dòng `Co-Authored-By` như các commit trước.
 
-## Trạng thái (cập nhật lần cuối 2026-10-21; sửa mục này khi tiến độ thay đổi)
+## Trạng thái (cập nhật lần cuối 2026-10-31; sửa mục này khi tiến độ thay đổi)
 
 **Đã xong**
 - PR #1: sửa 6 bug của lab; thêm test Node, CI, README song ngữ, LICENSE MIT.
 - PR #2: test e2e; sửa các lỗi nhỏ (▶ sau khi giải xong, điểm cuối đồ thị, `aria-live`, tooltip, tốc độ).
 - PR #3 (merge vào `main` ngày 2026-10-21): bảng `LIVE` và `rng` dùng chung; overfitting trong lab (tập test, nhiễu nhãn, weight decay, mini-batch); demo sampling của LLaMA (nhiệt độ T, top-p, bốc thăm); đã merge `main` (DenseNet-121, EfficientNet-B0); nút "Sao chép" không còn che code; panel không còn cuộn ngang trên điện thoại.
 - Commit thẳng lên `main` (theo yêu cầu chủ repo, 2026-10-19 đến 2026-10-21): DenseNet-121, EfficientNet-B0, hệ số Dice cho U-Net (đối chiếu với bài review CNN ảnh y khoa của Mienye và cộng sự, 2025); Swin-T với demo cửa sổ dịch; Stable Diffusion v1.5 (CLIP, U-Net, guidance, DDIM, VAE decoder) với demo khuếch tán 2D; đối chiếu Swin với slide và paper, thêm cách tra bảng bias và khối nổi Swin V2; ConvNeXt-T (lộ trình Bảng 10 từ ResNet-50, khối nổi ConvNeXt V2: GRN, FCMAE). Khối nổi (`float: true`) đặt nhãn phía trên hộp. Số tham số của mọi model mới được assert so với torchvision/diffusers. Đường tắt residual vòng lên trên heatmap thay vì cắt ngang.
+- Trên branch, chưa có PR (2026-10-31):
+  - **CNN (MNIST)**: train bằng NumPy (`training/train_mnist_cnn.py`, 5 258 tham số, 98.23%), forward bằng JS khớp logit tới 1e-9, tab vẽ chữ số với feature map thật. Bản PyTorch (`training/mnist_cnn_pytorch.py`) chưa từng được chạy vì môi trường không có torch: lần đầu chạy trên Colab thì kiểm tra số.
+  - **Cho thấy phần việc của chủ repo:** mục "How this was built" trong README, `training/README.md`, bản nháp bài viết `writing/lessons-draft.md` (chủ repo phải tự viết lại bằng lời của mình), form góp ý (`.github/ISSUE_TEMPLATE/feedback.yml`, link ở cuối mỗi khối), bộ nghiên cứu nhỏ `study/` (quy trình, bài kiểm tra 12 câu, bản nháp bài đăng).
+  - **Bản tiếng Anh** cho giao diện và 4 tab (xem mục "Bản tiếng Anh").
+  - Sửa số kiểu `128\,256` hiện nguyên văn trong văn xuôi (`fmtText`).
+  - `scripts/audit-layout.mjs` (kiểm tra bố cục) và `scripts/record-demo.mjs` (quay GIF demo).
 
 **Bước tiếp theo, theo thứ tự**
-1. **Giai đoạn 2: CNN thật trên MNIST.**
-   - Chủ repo train trên Colab: conv 3×3 8 kênh → ReLU → maxpool → conv 3×3 16 kênh → ReLU → maxpool → FC 400→10. Khoảng 5.300 tham số, mục tiêu ≥ 98% trên tập test.
-   - Export trọng số thành classic script, ví dụ `models/weights/mnist-cnn.js`, kèm 5 ảnh test và logit PyTorch tương ứng làm dữ liệu đối chiếu cho test.
-   - Claude viết:
-     - forward pass bằng JS, có test so với logit của PyTorch;
-     - tab "CNN (MNIST)" với ô vẽ chữ số, thu về 28×28 và căn giữa theo trọng tâm như MNIST;
-     - feature map thật trên khối 3D qua các key mới trong `LIVE`.
+1. **Việc của chủ repo (Claude không làm thay được):** viết lại bài viết bằng lời của mình; sửa mô tả "About" của repo trên GitHub (nhắc tới bản tiếng Anh và CNN thật); đăng bài giới thiệu (`study/announcement.md`); chạy nghiên cứu nhỏ (`study/README.md`), hỏi trường về hội đồng đạo đức nếu định công bố; chạy thử bản PyTorch trên Colab.
 2. **GPT tí hon tiếng Việt** (train trên Truyện Kiều): attention và phân bố xác suất thật thay cho bản đồ chơi trong `TOY`/`SAMPLE`.
-3. **Các demo còn lại của Giai đoạn 1:** trục chuẩn hoá (BN/LN/RMSNorm), chia ảnh thành patch cho ViT, receptive field cho ResNet, RoPE, BPE.
-4. **Giai đoạn 3–4:** MoE (diffusion, CLIP, VAE đã có trong Stable Diffusion); bản tiếng Anh (`info` → `{ vi, en }`); bài viết; nghiên cứu nhỏ với người dùng (workshop VISxAI).
+3. **Dịch 9 tab còn lại** (`node scripts/i18n.mjs` cho biết độ phủ), bắt đầu bằng ViT (ngắn nhất).
+4. **Các demo còn lại của Giai đoạn 1:** trục chuẩn hoá (BN/LN/RMSNorm), chia ảnh thành patch cho ViT, receptive field cho ResNet, RoPE, BPE.
+5. **MedMNIST + Grad-CAM** (CNN trên ảnh y khoa, nối với bài review của Mienye và cộng sự): chưa làm vì môi trường này không tải được dữ liệu từ Zenodo.
+6. **MoE** (diffusion, CLIP, VAE đã có trong Stable Diffusion).
 
 **Việc nhỏ còn tồn**
-- **`media/demo.gif` đã cũ.** Nên đưa script quay vào repo, ví dụ `scripts/record-demo.mjs`: Playwright `recordVideo`, rồi ffmpeg ra GIF 800px, 8 khung hình/giây, 64 màu, khoảng 3 MB.
 - **Unit test chậm (~30 s)** vì có hai lần train thật 2000 bước trong `train.test.mjs`.
 - **Muốn bỏ `docs/` khỏi repo** thì phải đổi nguồn của Pages sang "GitHub Actions" trong cài đặt repo trước.
+- **Bản trên claude.ai** (`ARTIFACT_URL`) cần đăng thêm `i18n/en.js` và `models/weights/mnist-cnn.js` khi đăng lại; thiếu `en.js` thì nút EN chỉ dịch giao diện.

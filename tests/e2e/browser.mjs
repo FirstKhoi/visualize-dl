@@ -32,8 +32,9 @@ export async function start() {
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 
   return {
-    // a fresh page at index.html#hash, settled (formulas typeset with { mathjax: true }); page.errors collects uncaught errors and console errors
-    async open(hash = '', { mathjax = false, ...options } = {}) {
+    // a fresh page at index.html#hash, settled (formulas typeset with { mathjax: true }); page.errors collects uncaught errors and console errors.
+    // { fonts: true } lets the real fonts come from Google Fonts (the only network use, for the layout audit; offline they fall back)
+    async open(hash = '', { mathjax = false, fonts = false, ...options } = {}) {
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce', colorScheme: 'light', ...options });
       const page = await ctx.newPage();
       page.errors = [];
@@ -43,7 +44,8 @@ export async function start() {
       await page.route('https://cdn.jsdelivr.net/npm/three@*/**', serveLocal); // …except three.js, from node_modules
       await page.route(mathjax ? /cdn\.jsdelivr\.net\/npm\/es-module-shims@/ : /cdn\.jsdelivr\.net\/npm\/(mathjax|es-module-shims)@/, route => route.fulfill({ body: '', contentType: 'text/javascript' }));
       if (mathjax) await page.route('https://cdn.jsdelivr.net/npm/mathjax@*/**', serveLocal);
-      await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
+      if (fonts) await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.continue());
+      else await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
       await page.goto(base + hash);
       await page.waitForSelector('.panel h2');
       await page.waitForTimeout(600);
