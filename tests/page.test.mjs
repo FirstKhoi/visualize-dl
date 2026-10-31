@@ -28,3 +28,15 @@ test('the MLP block states the real parameter count of the lab network', () => {
     assert.equal(net.W.flat(2).length + net.b.flat().length, stated[H], `H = ${H}`);
   }
 });
+
+test('TeX commands only appear inside \\( \\) or \\[ \\]: MathJax leaves the prose alone, so "128\\,256" would show as typed', () => {
+  const MODELS = loadPage()('MODELS'), bad = [];
+  for (const [key, m] of Object.entries(MODELS)) (function walk(nd, code) {
+    for (const f of ['what', 'why', 'example', 'params']) {
+      const prose = (nd.info?.[f] ?? '').replace(/\\\(.*?\\\)|\\\[.*?\\\]/gs, '');
+      if (/\\[a-zA-Z,;!]/.test(prose)) bad.push(`${code} ${f}: ${prose.match(/.{0,20}\\[a-zA-Z,;!].{0,12}/)[0]}`);
+    }
+    (nd.children || []).forEach((k, j) => walk(k, `${code}.${j}`));
+  })(m, key);
+  assert.deepEqual(bad, []);
+});

@@ -130,7 +130,7 @@ out = h + self.mlp(self.post_attention_layernorm(h))`
   skips: [[0, 2, 'x'], [3, 5, 'h']] });
 
 const sampling = n('Lấy mẫu token kế', 'act', `logit ${C.V} → 1 token`, {
-  what: `Biến ${fmt(C.V)} logit ở vị trí cuối thành đúng một token: chia cho nhiệt độ, softmax, cắt bỏ phần đuôi phân bố, rồi bốc thăm.`,
+  what: `Biến ${fmtText(C.V)} logit ở vị trí cuối thành đúng một token: chia cho nhiệt độ, softmax, cắt bỏ phần đuôi phân bố, rồi bốc thăm.`,
   formula: [R`x_{n+1} \sim \mathrm{TopP}_p\big(\mathrm{softmax}(z / T)\big)`],
   why: 'Luôn lấy token có xác suất cao nhất (greedy) dễ bị lặp từ và câu nhạt. Bốc thăm có kiểm soát giữ câu tự nhiên mà vẫn không lạc đề. Các tham số T và p chính là "temperature" và "top_p" bạn hay chỉnh khi gọi API.',
   code: `probs = (logits[:, -1] / 0.7).softmax(-1)

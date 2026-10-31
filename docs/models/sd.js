@@ -85,8 +85,8 @@ return h + ${proj ? 'self.conv_shortcut(x)' : 'x'}`
 function attention(cross, C, N) {
   const d = C / 8, kv = cross ? TX : N, kd = cross ? TD : C, p = 2 * C * C + 2 * kd * C + C;
   return n(cross ? 'Cross-Attention' : 'Multi-Head Self-Attention', 'attn', cross ? `Q ${N}×${C} · K,V ${TX}×${TD} → ${N}×${C}` : `${N}×${C} → ${N}×${C}`, {
-    what: cross ? R`Query lấy từ ${fmt(N)} vị trí của bản đồ đặc trưng; key và value lấy từ ${TX} token văn bản (768 chiều) của CLIP. Mỗi vị trí trong ảnh tự chọn nên "nghe" từ nào trong câu mô tả. Đây là chỗ duy nhất văn bản đi vào U-Net.`
-      : R`Mỗi trong ${fmt(N)} vị trí của bản đồ đặc trưng chú ý tới mọi vị trí khác: hai vùng xa nhau trong ảnh trao đổi thông tin trực tiếp, điều mà conv 3×3 phải chồng rất nhiều lớp mới làm được.`,
+    what: cross ? R`Query lấy từ ${fmtText(N)} vị trí của bản đồ đặc trưng; key và value lấy từ ${TX} token văn bản (768 chiều) của CLIP. Mỗi vị trí trong ảnh tự chọn nên "nghe" từ nào trong câu mô tả. Đây là chỗ duy nhất văn bản đi vào U-Net.`
+      : R`Mỗi trong ${fmtText(N)} vị trí của bản đồ đặc trưng chú ý tới mọi vị trí khác: hai vùng xa nhau trong ảnh trao đổi thông tin trực tiếp, điều mà conv 3×3 phải chồng rất nhiều lớp mới làm được.`,
     formula: [R`Q = W_Q\, \varphi(z_t), \qquad K = W_K\, ${cross ? R`\tau_\theta(y)` : R`\varphi(z_t)`}, \qquad V = W_V\, ${cross ? R`\tau_\theta(y)` : R`\varphi(z_t)`}`, R`\mathrm{Attention}(Q, K, V) = \mathrm{softmax}\big(QK^\top / \sqrt{${d}}\big)V`],
     why: cross ? 'Bài Latent Diffusion đưa điều kiện vào U-Net bằng đúng cơ chế này: τθ là bộ mã hoá điều kiện (ở Stable Diffusion là CLIP), φ(z_t) là biểu diễn giữa chừng của U-Net. Cùng khung đó dùng được cho điều kiện khác (bản đồ phân vùng, một ảnh khác) chỉ bằng cách đổi τθ. Ma trận attention chỉ cỡ ' + fmt(N).replace(/\\,/g, ' ') + ' × 77, rẻ hơn self-attention nhiều.'
       : `Ma trận attention mỗi đầu cỡ ${fmt(N).replace(/\\,/g, ' ')} × ${fmt(N).replace(/\\,/g, ' ')}${N === 4096 ? ', khoảng 16.8 triệu ô: phần tốn bộ nhớ nhất của U-Net, và là chỗ các cài đặt kiểu FlashAttention giúp nhiều nhất' : ''}.`,
@@ -166,7 +166,7 @@ h = h + self.ff(self.norm3(h))`
     skips: [[0, 2, 'h'], [3, 5, 'h'], [6, 8, 'h']],
     extra: [{ a: { ext: 4, s: 'b', d: 1.5 }, b: { i: 4, s: 'b' }, kind: 'cross', label: 'văn bản 77×768' }] });
   return n('Khối Transformer (ảnh ↔ văn bản)', 'attn', `${C}×${hw(H)} → ${C}×${hw(H)}`, {
-    what: R`Duỗi bản đồ \(${C} \times ${H} \times ${H}\) thành chuỗi ${fmt(N)} token ${C} chiều, cho qua một khối Transformer (self-attention giữa các vị trí, cross-attention tới văn bản, FFN), gấp lại thành lưới, rồi cộng residual.`,
+    what: R`Duỗi bản đồ \(${C} \times ${H} \times ${H}\) thành chuỗi ${fmtText(N)} token ${C} chiều, cho qua một khối Transformer (self-attention giữa các vị trí, cross-attention tới văn bản, FFN), gấp lại thành lưới, rồi cộng residual.`,
     formula: [R`y = x + W_{\text{out}} * \mathrm{Grid}\Big(\mathrm{Block}\big(\mathrm{Seq}(W_{\text{in}} * \mathrm{GN}(x)),\ \tau_\theta(y)\big)\Big)`],
     why: 'ResBlock chỉ nhìn cục bộ và không biết gì về câu mô tả; khối này bù cả hai. Có mặt ở mọi tầng trừ tầng 8×8 cuối của nhánh xuống và tầng 8×8 đầu của nhánh lên (khối giữa ở 8×8 thì có).',
     params: R`\(${fmt(p)}\).`,
@@ -182,13 +182,13 @@ y = x + self.proj_out(h.transpose(1, 2).view(B, ${C}, ${H}, ${H}))`
       code: `nn.Conv2d(${C}, ${C}, kernel_size=1)`
     }, { tag: 'Conv 1×1', size: vol(C, H) }),
     n('Duỗi thành chuỗi', 'shape', `${C}×${hw(H)} → ${N}×${C}`, {
-      what: R`Lưới \(${H} \times ${H}\) được duỗi thành chuỗi ${fmt(N)} token, mỗi token ${C} chiều.`,
+      what: R`Lưới \(${H} \times ${H}\) được duỗi thành chuỗi ${fmtText(N)} token, mỗi token ${C} chiều.`,
       formula: [R`\mathbb{R}^{${C} \times ${H} \times ${H}} \to \mathbb{R}^{${N} \times ${C}}`],
       code: `h = h.flatten(2).transpose(1, 2)`
     }, { tag: 'Duỗi', size: [0.6, 1.5, 1.3] }),
     block,
     n('Gấp lại thành lưới', 'shape', `${N}×${C} → ${C}×${hw(H)}`, {
-      what: R`Ngược với bước duỗi: chuỗi ${fmt(N)} token trở lại lưới \(${H} \times ${H}\).`,
+      what: R`Ngược với bước duỗi: chuỗi ${fmtText(N)} token trở lại lưới \(${H} \times ${H}\).`,
       code: `h = h.transpose(1, 2).view(B, ${C}, ${H}, ${H})`
     }, { tag: 'Gấp lại', size: [0.6, 1.5, 1.3] }),
     n('Conv 1×1 ra (proj_out)', 'conv', `${C}×${hw(H)} → ${C}×${hw(H)}`, {

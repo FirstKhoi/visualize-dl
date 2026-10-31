@@ -33,7 +33,7 @@ MODELS.cnn = n('CNN nhỏ trên MNIST', 'conv', '1×28×28 → 10', {
     R`z = W_{fc}\, \mathrm{flatten}\Big(\mathrm{pool}\big(\mathrm{ReLU}(W_2 * \mathrm{pool}(\mathrm{ReLU}(W_1 * x + b_1)) + b_2)\big)\Big) + b_{fc}`,
     R`p = \mathrm{softmax}(z), \qquad \hat y = \arg\max_d\ p_d`
   ],
-  why: `Vì sao conv mà không phải MLP: cùng một bộ lọc 3×3 trượt qua mọi vị trí (dùng chung trọng số), nên một nét ngang ở góc nào cũng được nhận ra như nhau, và số tham số nhỏ hẳn: mạng này chỉ có ${fmt(W.params)}. Max-pool làm mạng ít nhạy với xê dịch nhỏ. Đây là ý tưởng của LeNet (LeCun và cộng sự, 1998), tổ tiên của ResNet và ConvNeXt trong trang này.`,
+  why: `Vì sao conv mà không phải MLP: cùng một bộ lọc 3×3 trượt qua mọi vị trí (dùng chung trọng số), nên một nét ngang ở góc nào cũng được nhận ra như nhau, và số tham số nhỏ hẳn: mạng này chỉ có ${fmtText(W.params)}. Max-pool làm mạng ít nhạy với xê dịch nhỏ. Đây là ý tưởng của LeNet (LeCun và cộng sự, 1998), tổ tiên của ResNet và ConvNeXt trong trang này.`,
   example: `Train bằng NumPy với backprop viết tay (đã kiểm tra bằng sai phân), Adam η = 0.001, batch 64, 6 epoch, mỗi ảnh dịch ngẫu nhiên tới 2 pixel: đúng ${acc} trên 10 000 ảnh test, mất khoảng 2 phút trên CPU. Script: training/train_mnist_cnn.py.`,
   params: R`\(${P.conv1} + ${fmt(P.conv2)} + ${fmt(P.fc)} = ${fmt(W.params)}\): conv1 \(8 \times 1 \times 9 + 8\), conv2 \(16 \times 8 \times 9 + 16\), Linear \(10 \times 400 + 10\). Ba phần tư nằm ở lớp Linear cuối.`,
   code: `class Net(nn.Module):
@@ -72,7 +72,7 @@ MODELS.cnn = n('CNN nhỏ trên MNIST', 'conv', '1×28×28 → 10', {
   n('Linear 400 → 10', 'linear', '400 → 10', {
     what: 'Mỗi chữ số có một hàng 400 trọng số. Điểm (logit) của chữ số d là tích vô hướng của hàng đó với vector 400 đặc trưng, cộng bias.',
     formula: [R`z_d = \sum_{k=1}^{400} W_{d,k}\, f_k + b_d, \qquad d = 0, \dots, 9`],
-    why: `Chiếm ${fmt(P.fc)} trên ${fmt(W.params)} tham số. Hai lớp conv trích đặc trưng; lớp này chỉ còn phải cân các đặc trưng đó cho từng chữ số.`,
+    why: `Chiếm ${fmtText(P.fc)} trên ${fmtText(W.params)} tham số. Hai lớp conv trích đặc trưng; lớp này chỉ còn phải cân các đặc trưng đó cho từng chữ số.`,
     params: R`\(10 \times 400 + 10 = ${fmt(P.fc)}\).`,
     code: 'z = self.fc(f)   # nn.Linear(400, 10)'
   }, { tag: 'Linear', size: [0.5, 1.4, 1.2], live: 'cnnOut' }),

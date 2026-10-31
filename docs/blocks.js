@@ -5,7 +5,8 @@
 const MODELS = {};
 const R = String.raw;
 const n = (name, cat, shape, info, more = {}) => ({ name, cat, shape, info, ...more });
-const fmt = v => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '\\,');
+const fmt = v => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '\\,'); // inside \( \) only: MathJax leaves prose alone
+const fmtText = v => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0'); // the same in prose: a no-break space
 const sqrtTeX = v => Number.isInteger(Math.sqrt(v)) ? R`\sqrt{${v}} = ${Math.sqrt(v)}` : R`\sqrt{${v}} \approx ${Math.sqrt(v).toFixed(2)}`;
 const sp = H => Math.min(2.8, Math.max(0.22, 0.55 + 0.42 * Math.log2(H / 7)));
 const ch = C => Math.max(0.06, 0.1 + 0.2 * Math.log2(C / 16));
