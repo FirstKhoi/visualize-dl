@@ -7,7 +7,7 @@ const ROOT = new URL('../', import.meta.url);
 
 export function run(sources) {
   const assert = (ok, ...msg) => { if (!ok) throw new Error(`console.assert failed: ${msg.join(' ')}`); };
-  const ctx = vm.createContext({ console: Object.assign(Object.create(console), { assert }) });
+  const ctx = vm.createContext({ console: Object.assign(Object.create(console), { assert }), atob }); // atob: a browser global the page uses
   for (const { name, code } of sources) vm.runInContext(code, ctx, { filename: name });
   return expr => vm.runInContext(expr, ctx); // top-level const/let are only reachable by evaluating their names
 }

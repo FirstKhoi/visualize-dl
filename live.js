@@ -353,3 +353,62 @@ const DIFF = (() => {
   console.assert(Math.abs(AB[999] - 0.00466) < 1e-5 && timesteps(50)[0] === 981, 'toy diffusion schedule mismatch');
   return { T, AB, S, PROMPTS, x0hat, epsOf, eps, ddim, timesteps, sample, nearest };
 })();
+
+// The trained CNN of the "CNN (MNIST)" tab: conv 3×3 ×8 → ReLU → max-pool → conv 3×3 ×16 → ReLU → max-pool → linear 400 → 10.
+// Weights: models/weights/mnist-cnn.js, written by training/train_mnist_cnn.py in PyTorch's state_dict layout; that file
+// loads after this one, so MNIST_CNN is only read when the network runs.
+const CNN = (() => {
+  const w = k => MNIST_CNN.weights[k].data;
+  // 3×3 cross-correlation, no padding (nn.Conv2d): x[C][H][H] → [O][H − 2][H − 2]
+  function conv(x, W, b, O) {
+    const C = x.length, H = x[0].length - 2;
+    return Array.from({ length: O }, (_, o) => Array.from({ length: H }, (_, i) => Array.from({ length: H }, (_, j) => {
+      let s = b[o];
+      for (let c = 0; c < C; c++) for (let u = 0; u < 3; u++) for (let v = 0; v < 3; v++) s += W[((o * C + c) * 3 + u) * 3 + v] * x[c][i + u][j + v];
+      return s;
+    })));
+  }
+  const relu = m => m.map(ch => ch.map(r => r.map(v => v > 0 ? v : 0)));
+  // 2×2 max-pool, stride 2; an odd last row or column is dropped (nn.MaxPool2d)
+  const pool = m => m.map(ch => Array.from({ length: ch.length >> 1 }, (_, i) => Array.from({ length: ch.length >> 1 }, (_, j) =>
+    Math.max(ch[2 * i][2 * j], ch[2 * i][2 * j + 1], ch[2 * i + 1][2 * j], ch[2 * i + 1][2 * j + 1]))));
+  // pixels: 784 values in [0, 1], row by row → every layer's output, the 10 logits and their softmax
+  function run(pixels) {
+    const x = [Array.from({ length: 28 }, (_, i) => pixels.slice(i * 28, i * 28 + 28))];
+    const c1 = relu(conv(x, w('conv1.weight'), w('conv1.bias'), 8)), p1 = pool(c1);
+    const c2 = relu(conv(p1, w('conv2.weight'), w('conv2.bias'), 16)), p2 = pool(c2);
+    const f = p2.flat(2), fw = w('fc.weight'); // 16 × 5 × 5 = 400, channel first, as torch.flatten
+    const logits = w('fc.bias').map((b, d) => f.reduce((s, v, k) => s + v * fw[d * 400 + k], b));
+    const m = Math.max(...logits), e = logits.map(v => Math.exp(v - m)), z = e.reduce((a, b) => a + b);
+    return { x, c1, p1, c2, p2, logits, probs: e.map(v => v / z) };
+  }
+  const decode = b64 => [...atob(b64)].map(ch => ch.charCodeAt(0) / 255); // a 28×28 uint8 sample → 784 values in [0, 1]
+  // a drawing (rows of values in [0, 1]) → an MNIST-like input, made the way MNIST was: the ink's bounding box scaled into
+  // 20×20 keeping its aspect ratio (area averaging), then placed in 28×28 with its centre of mass in the middle
+  function prepare(img) {
+    const N = img.length, out = new Array(784).fill(0);
+    let top = N, bottom = -1, left = N, right = -1;
+    img.forEach((row, i) => row.forEach((v, j) => { if (v > 0) { top = Math.min(top, i); bottom = Math.max(bottom, i); left = Math.min(left, j); right = Math.max(right, j); } }));
+    if (bottom < 0) return out;
+    const bh = bottom - top + 1, bw = right - left + 1, s = 20 / Math.max(bh, bw), th = Math.max(1, Math.round(bh * s)), tw = Math.max(1, Math.round(bw * s));
+    // which source rows (or columns) each target cell covers, and by how much
+    const cover = (n, t) => Array.from({ length: t }, (_, k) => {
+      const a = k * n / t, b = (k + 1) * n / t, parts = [];
+      for (let r = Math.floor(a); r < Math.ceil(b); r++) parts.push([r, Math.min(b, r + 1) - Math.max(a, r)]);
+      return parts;
+    });
+    const rows = cover(bh, th), cols = cover(bw, tw);
+    const patch = rows.map(rs => cols.map(cs => {
+      let sum = 0, area = 0;
+      for (const [r, a] of rs) for (const [c, b] of cs) { sum += a * b * img[top + r][left + c]; area += a * b; }
+      return sum / area;
+    }));
+    let m = 0, ci = 0, cj = 0;
+    patch.forEach((row, i) => row.forEach((v, j) => { m += v; ci += (i + 0.5) * v; cj += (j + 0.5) * v; }));
+    const place = (c, size) => Math.min(28 - size, Math.max(0, Math.round(14 - c))); // the margin keeps the whole digit in view
+    const oi = place(ci / m, th), oj = place(cj / m, tw);
+    patch.forEach((row, i) => row.forEach((v, j) => { out[(oi + i) * 28 + oj + j] = v; }));
+    return out;
+  }
+  return { run, decode, prepare };
+})();

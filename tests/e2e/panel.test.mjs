@@ -47,7 +47,10 @@ test('on phones no formula or grid pushes the panel sideways', async () => {
     ['llm.2.4.1', SIDEWAYS, 'SiLU([−1.5, 0.3, 2]) in "Ví dụ số"'],
     ['densenet.8.0', SIDEWAYS, 'dense layer parameter sum in "Tham số"'],
     ['mlp', SIDEWAYS, '2H + H + H² + … in "Tham số"'],
-    ['resnet.2.0.3', SIDEWAYS, 'the toy convolution\'s output grid']
+    ['resnet.2.0.3', SIDEWAYS, 'the toy convolution\'s output grid'],
+    ['cnn', PHONE, 'the CNN tab: drawing pad and what the network sees'],
+    ['cnn', SIDEWAYS, 'the CNN tab: drawing pad and what the network sees'],
+    ['cnn.4', SIDEWAYS, 'the CNN tab: 16 feature maps']
   ]) {
     const page = await app.open('#' + link, { viewport, mathjax: true });
     const [scroll, width] = await page.evaluate(() => { const p = document.getElementById('panel'); return [p.scrollWidth, p.clientWidth]; });

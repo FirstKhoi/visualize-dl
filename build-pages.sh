@@ -9,6 +9,8 @@ rm -rf docs
 mkdir -p docs/models
 cp blocks.js live.js docs/
 cp models/*.js docs/models/
+mkdir -p docs/models/weights
+cp models/weights/*.js docs/models/weights/
 {
   printf '<!doctype html>\n<html lang="vi">\n'
   sed "s#^const ARTIFACT_URL = '[^']*';#const ARTIFACT_URL = '';#" index.html

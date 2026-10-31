@@ -36,8 +36,9 @@ The interface and explanations are in Vietnamese. Every block in every model can
 | **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop, Dice score | Unpadded 8×8 convolution |
 | **Stable Diffusion v1.5** (Rombach et al., 2022) | CLIP text encoder, the noise-predicting U-Net (ResBlocks with timestep embedding, GroupNorm, self- and cross-attention, GEGLU), classifier-free guidance, the DDIM step and its 50-step loop, the VAE decoder | Toy diffusion in 2D with the real noise schedule and DDIM: 300 points go from noise to the clusters of a prompt; change the prompt, the guidance and the number of steps, and scrub through the steps |
 | **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, full batch or mini-batches, label noise, weight decay, a held-out test set with train/test loss curves, decision boundary, advice read from the curves (including overfitting), real weight matrices painted on the 3D blocks |
+| **CNN (MNIST)** | A small CNN trained for real on MNIST (5 258 parameters, 98.2% on the test set): two 3×3 convs, max-pooling, a linear layer | Draw a digit or pick an MNIST sample: the input as the network sees it (MNIST's 20×20 box and centre of mass), every channel's real feature maps, the 10 probabilities |
 
-The attention and convolution demos use small hand-picked inputs so every number can be read. Only the training lab learns its weights.
+The attention and convolution demos use small hand-picked inputs so every number can be read. The training lab learns its weights in the page, and the CNN tab runs weights trained on MNIST by `training/train_mnist_cnn.py` (NumPy, hand-written backprop; a PyTorch version for Colab is next to it).
 
 ### Also
 
@@ -75,7 +76,7 @@ To add a model, create `models/<name>.js` (see `models/vit.js` for a short one) 
 ### Roadmap
 
 1. Demos for missing ideas: normalisation axes, ViT patches, receptive fields, RoPE, BPE.
-2. Real trained models in the browser: a small CNN on MNIST where you draw a digit, and a tiny Vietnamese GPT trained on *Truyện Kiều*.
+2. Real trained models in the browser: ~~a small CNN on MNIST where you draw a digit~~ (done), a tiny Vietnamese GPT trained on *Truyện Kiều*.
 3. New architectures built from existing blocks: diffusion, CLIP, mixture of experts, VAE.
 4. English content.
 
@@ -106,6 +107,7 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 | **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối, hệ số Dice | Tích chập 8×8 không đệm |
 | **Stable Diffusion v1.5** (2022) | CLIP text encoder, U-Net đoán nhiễu (ResBlock có nhúng bước t, GroupNorm, self-attention và cross-attention, GEGLU), classifier-free guidance, bước DDIM và vòng lặp 50 bước, VAE decoder | Khuếch tán đồ chơi trong 2D với đúng lịch nhiễu và DDIM: 300 điểm đi từ nhiễu về các cụm của câu mô tả; đổi câu mô tả, guidance, số bước, và kéo qua từng bước |
 | **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, full batch hoặc mini-batch, nhiễu nhãn, weight decay, tập test riêng với đường loss train/test, ranh giới quyết định, lời khuyên đọc từ đường loss (kể cả overfitting), ma trận trọng số thật tô lên khối 3D |
+| **CNN (MNIST)** | CNN nhỏ train thật trên MNIST (5 258 tham số, đúng 98,2% trên tập test): hai conv 3×3, max-pool, một lớp Linear | Vẽ một chữ số hoặc chọn ảnh MNIST mẫu: ảnh 28×28 mà mạng nhìn thấy (thu vào 20×20, căn theo trọng tâm như MNIST), bản đồ đặc trưng thật của từng kênh, 10 xác suất |
 
 Demo attention và tích chập dùng đầu vào nhỏ chọn tay để đọc được từng con số. Chỉ phòng thí nghiệm huấn luyện là học trọng số thật.
 
@@ -126,5 +128,5 @@ Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là fil
 
 ---
 
-Inspired by [TensorFlow Playground](https://playground.tensorflow.org/). Built with [three.js](https://threejs.org/) and [MathJax](https://www.mathjax.org/).
+Inspired by [TensorFlow Playground](https://playground.tensorflow.org/). The CNN tab is trained on [MNIST](http://yann.lecun.com/exdb/mnist/) (LeCun, Cortes & Burges, CC BY-SA 3.0); ten of its test images ship as samples. Built with [three.js](https://threejs.org/) and [MathJax](https://www.mathjax.org/).
 License: [MIT](LICENSE).

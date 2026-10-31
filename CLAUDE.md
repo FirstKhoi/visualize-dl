@@ -21,8 +21,10 @@ Mở `index.html` trực tiếp bằng trình duyệt (`file://`) là chạy đ�
 |---|---|
 | `index.html` | Toàn bộ giao diện: CSS, cảnh 3D, panel, lab, các demo. Một `<script type="module">` lớn |
 | `blocks.js` | Khối dùng chung (attention, FFN, các lớp norm…), danh sách paper `PAPER` (dùng qua `ref(key, note)`), chỉ mục khái niệm `CONCEPTS` |
-| `live.js` | Mọi thứ thật sự tính toán: `rng`/`gauss` (có seed), `TOY` (attention đồ chơi), `TOYCONV`, `TRAIN` (MLP train trong trang), `GRAD` (thí nghiệm gradient), `SAMPLE` (lấy mẫu từ kế tiếp), `SWIN` (cửa sổ dịch đồ chơi), `DIFF` (khuếch tán 2D: lịch nhiễu của SD, bộ khử nhiễu chính xác cho hỗn hợp Gauss, DDIM, guidance) |
+| `live.js` | Mọi thứ thật sự tính toán: `rng`/`gauss` (có seed), `TOY` (attention đồ chơi), `TOYCONV`, `TRAIN` (MLP train trong trang), `GRAD` (thí nghiệm gradient), `SAMPLE` (lấy mẫu từ kế tiếp), `SWIN` (cửa sổ dịch đồ chơi), `DIFF` (khuếch tán 2D: lịch nhiễu của SD, bộ khử nhiễu chính xác cho hỗn hợp Gauss, DDIM, guidance), `CNN` (forward của CNN MNIST và tiền xử lý hình vẽ kiểu MNIST) |
 | `models/*.js` | Mỗi file một kiến trúc, dựng cây khối bằng `n(name, cat, shape, info, more)` |
+| `models/weights/mnist-cnn.js` | Trọng số của CNN MNIST (`MNIST_CNN`), do `training/train_mnist_cnn.py` sinh ra. Không sửa tay; train lại thì chạy script rồi `npm test` |
+| `training/` | Script train bằng NumPy (nguồn của trọng số trong repo), bản PyTorch tương đương cho Colab, `results.json`. Dữ liệu MNIST tải về `training/data/` (gitignore) |
 | `docs/` | Bản cho GitHub Pages do `build-pages.sh` sinh ra. Không sửa tay |
 | `tests/*.test.mjs` | Unit test. `tests/load.mjs` chạy các `<script src>` của `index.html` trong Node, biến `console.assert` thành lỗi thật |
 | `tests/e2e/` | Test bằng Playwright. `browser.mjs` lấy three.js từ `node_modules` (phiên bản phải khớp import map) và chặn mọi request ra mạng. MathJax mặc định được giả lập; test về bố cục mở trang với `app.open(hash, { mathjax: true })` để có công thức thật. Font luôn được giả lập |
@@ -33,7 +35,10 @@ Script là classic script, không dùng ES module, để trang vẫn mở đư�
 Một khối gắn `live: '<key>'` trong `models/*.js`. `LIVE[key]` khai báo ba thứ:
 - `matrix(memo)` hoặc `image(node)`: thứ được vẽ trên khối 3D (`image` nhận node đang vẽ, nên một key có thể vẽ khác nhau theo cấu hình của khối, ví dụ `node.swin`, `node.diff`);
 - `section()`: phần giải thích trong panel;
-- `demo`: tên demo sở hữu khối, để biết khi nào cần vẽ lại (dùng qua `showsDemo(level, demo)`).
+- `demo`: tên demo sở hữu khối, để biết khi nào cần vẽ lại (dùng qua `showsDemo(level, demo)`);
+- `mount()` (tuỳ chọn): chạy sau khi panel dựng xong và khi đổi theme, để vẽ các canvas trong panel.
+
+Không có `matrix` lẫn `image` thì khối chỉ có phần trong panel, không có sprite (gốc của tab CNN, khối ảnh vào và hai khối pool của nó: sprite trên các khối mỏng đứng sát nhau sẽ che nhau).
 
 Các key hiện có:
 - attention: `qk`, `scale`, `mask`, `softmax`, `sdpa`, `av`;
@@ -41,7 +46,8 @@ Các key hiện có:
 - lab: `W1`, `W2`, `W3`, `boundary`;
 - sampling: `sample`, `sampleProbs`, `sampleDraws`;
 - Swin: `swin` (`node.swin` = `{ shifted }`, `{ rolled }` hoặc `{ mask }`);
-- khuếch tán: `diff` (`node.diff.at` = `start`, `now` hoặc `end`).
+- khuếch tán: `diff` (`node.diff.at` = `start`, `now` hoặc `end`);
+- CNN thật trên MNIST: `cnn` (gốc), `cnnIn`, `cnnC1`, `cnnP1`, `cnnC2`, `cnnP2`, `cnnOut`.
 
 Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.mjs` tự mở một khối của mỗi key và kiểm tra phần trong panel; nếu class của section khác `live` thì cập nhật map `SECTION` trong file test đó.
 

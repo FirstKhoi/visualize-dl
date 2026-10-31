@@ -14,7 +14,7 @@ test('a failing console.assert inside a script fails the load', () => {
 
 test("every script's own self-checks pass (toy attention, conv, backprop, parameter counts)", () => {
   const get = loadPage(); // throws on the first failing console.assert
-  const models = pageScripts().filter(s => s.startsWith('models/'));
+  const models = pageScripts().filter(s => s.startsWith('models/') && !s.startsWith('models/weights/')); // weights files register no model
   assert.equal(Object.keys(get('MODELS')).length, models.length, 'each model file registers one model');
 });
 
