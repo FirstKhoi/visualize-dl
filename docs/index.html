@@ -220,6 +220,16 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .drow .dp, .drow .dn { font: 12px var(--f-mono); text-align: right; color: var(--muted); }
 .drow.cut .dw { color: var(--muted); text-decoration: line-through; }
 /* the CNN tab: drawing pad, what the network sees, its answer, feature maps */
+.ct-io { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 10px 0; }
+#ct-view { width: min(100%, 256px); height: auto; aspect-ratio: 1; image-rendering: pixelated; cursor: crosshair; border: 1px solid var(--line); border-radius: 8px; }
+.ct-read { margin: 0 !important; min-width: 0; font: 500 12.5px/1.5 var(--f-mono); }
+.ct-ramp { display: block; width: 100%; height: auto; margin-top: 10px; }
+.ct-wrap { overflow-x: auto; }
+.ct-table { margin-top: 6px; border-collapse: collapse; font-size: 13px; }
+.ct-table th, .ct-table td { padding: 2px 10px 2px 0; text-align: right; font-weight: 400; }
+.ct-table th { color: var(--muted); font-size: 12px; }
+.ct-table td:first-child, .ct-table th:first-child { text-align: left; }
+.ct-table i { display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; border: 1px solid var(--line); border-radius: 3px; }
 .cnn-io { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin: 10px 0; }
 #cnn-pad { width: min(100%, 200px); height: auto; aspect-ratio: 1; touch-action: none; cursor: crosshair; border: 1px solid var(--line); border-radius: 8px; }
 #cnn-input { width: 84px; height: 84px; image-rendering: pixelated; border: 1px solid var(--line); border-radius: 4px; }
@@ -339,7 +349,8 @@ const GLOSS = L({}, {
   'danh từ': 'noun', 'động từ': 'verb', 'tính từ': 'adjective', 'đại từ': 'pronoun', 'con vật': 'animal',
   'Hôm nay trời rất': 'Today the weather is very', 'đẹp': 'nice', 'nóng': 'hot', 'lạnh': 'cold', 'nắng': 'sunny', 'oi': 'muggy', 'mát': 'cool',
   'âm u': 'gloomy', 'trong': 'clear', 'xanh': 'blue', 'đẹp trai': 'handsome', 'ngon': 'tasty', 'chạy': 'running',
-  'Hai cụm': 'Two blobs', 'Vòng tròn': 'Circles', 'Xoắn ốc': 'Spiral'
+  'Hai cụm': 'Two blobs', 'Vòng tròn': 'Circles', 'Xoắn ốc': 'Spiral',
+  'Không khí': 'Air', 'Phổi': 'Lung', 'Mỡ': 'Fat', 'Nước': 'Water', 'Mô mềm': 'Soft tissue', 'Xương': 'Bone'
 });
 const gloss = w => GLOSS[w] ?? w;
 if (EN) document.title = 'Anatomy of a neural network';
@@ -701,7 +712,8 @@ const LIVE = {
   diff: { demo: 'diff', image: nd => diffImage(nd.diff.at), section: () => difSection() }, // toy diffusion: the start, current or last step
   // the trained CNN: the tab's root (panel only), the input, the four stages' feature maps and the 10 probabilities
   ...Object.fromEntries([['cnn'], ['cnnIn', 'in'], ['cnnC1', 'c1'], ['cnnP1', 'p1'], ['cnnC2', 'c2'], ['cnnP2', 'p2'], ['cnnOut', 'out']].map(([k, stage]) =>
-    [k, { demo: 'cnn', ...(['c1', 'c2', 'out'].includes(stage) && { image: () => cnnImage(stage) }), section: () => cnnSection(stage), mount: cnnRefresh }])) // the thin input and pool blocks: panel only, their sprites would cover the convs'
+    [k, { demo: 'cnn', ...(['c1', 'c2', 'out'].includes(stage) && { image: () => cnnImage(stage) }), section: () => cnnSection(stage), mount: cnnRefresh }])), // the thin input and pool blocks: panel only, their sprites would cover the convs'
+  ct: { demo: 'ct', image: () => ctImage(), section: () => ctSection(), mount: ctRefresh } // CT windowing on a synthetic slice
 };
 const showsDemo = (L, demo) => L.items.some(it => it.live && LIVE[it.node.live].demo === demo);
 const fmtV = v => v === -Infinity ? '−∞' : Number.isInteger(v) ? String(v) : v.toFixed(2);
@@ -1040,6 +1052,7 @@ panel.addEventListener('input', e => {
   if (t.dataset.labkey) return labSlider(t);
   if (t.dataset.smp) return smpSlider(t);
   if (t.dataset.dif) return difSlider(t);
+  if (t.dataset.ct) return ctSlider(t);
   if (!t.dataset.exp) return;
   exp[t.dataset.exp][t.dataset.key] = +t.value;
   panel.querySelector(`#o-${t.dataset.exp}-${t.dataset.key}`).textContent = t.value;
@@ -1355,6 +1368,75 @@ function cnnDo(b) {
   cnnSet(); cnnRefresh();
 }
 
+// ---------- CT windowing (CT in live.js): a synthetic chest slice in Hounsfield units, seen through a window W, L ----------
+const ct = { W: 400, L: 40, pick: null }; // pick = the clicked CT pixel [x, y]
+const ctSlice = CT.slice(), ctCanvas = document.createElement('canvas');
+const ctNum = v => String(Math.round(v)).replace('-', '−');
+const ctPreset = () => Object.keys(CT.PRESETS).find(k => CT.PRESETS[k].W === ct.W && CT.PRESETS[k].L === ct.L);
+function ctImage() { // the slice through the window, one canvas pixel per CT pixel, with the picked pixel marked
+  const { N, hu } = ctSlice, c = ctCanvas, g = c.getContext('2d');
+  c.width = c.height = N;
+  const img = g.createImageData(N, N);
+  for (let i = 0; i < N * N; i++) { const v = Math.round(255 * CT.gray(hu[i], ct.W, ct.L)); img.data.set([v, v, v, 255], 4 * i); }
+  g.putImageData(img, 0, 0);
+  if (ct.pick) { g.strokeStyle = theme.chartA.getStyle(); g.lineWidth = 1; g.strokeRect(ct.pick[0] - 2.5, ct.pick[1] - 2.5, 6, 6); }
+  return c;
+}
+const ctSlide = (key, label, min, max) => `<label class="sl" for="ct-${key}"><span>${label}<output id="o-ct-${key}">${ctNum(ct[key])}</output></span><input type="range" id="ct-${key}" data-ct="${key}" min="${min}" max="${max}" step="10" value="${ct[key]}"></label>`;
+const ctSection = () => `<section class="live ct"><h3>${L('Số chạy thật', 'Live numbers')}</h3>
+  <p class="kids-hint">${L('Lát cắt ngực giả lập, vẽ bằng code chứ không phải ảnh bệnh nhân: mỗi vùng mang giá trị HU điển hình của mô đó, cộng nhiễu σ = 10 HU. Chọn một preset hoặc kéo W và L; nhấp vào ảnh để đọc HU tại đó.',
+    'A synthetic chest slice drawn in code, not a patient image: each region holds the typical HU of its tissue, plus noise σ = 10 HU. Pick a preset or drag W and L; click the image to read the HU there.')}</p>
+  <div class="ct-io"><canvas id="ct-view" width="128" height="128" role="img" aria-label="${L('Lát cắt CT giả lập qua cửa sổ đang chọn', 'The synthetic CT slice through the current window')}"></canvas><p class="ct-read"></p></div>
+  <div class="live-ctl">
+    <div class="vocab"><span>Preset:</span>${Object.keys(CT.PRESETS).map(k => `<button type="button" data-ctpreset="${k}" aria-pressed="${ctPreset() === k}">${gloss(k)}</button>`).join('')}</div>
+    ${ctSlide('W', L('Độ rộng cửa sổ W', 'Window width W'), 50, 2500)}
+    ${ctSlide('L', L('Mức giữa L', 'Window level L'), -1000, 1000)}
+  </div>
+  <div class="ct-out"></div></section>`;
+// the window as a function: HU on the x axis, gray on the y axis, the tissues as dots; then the same as a table
+function ctOut() {
+  const lo = ct.L - ct.W / 2, hi = ct.L + ct.W / 2, D = [-1100, 1300], Wd = 320, H = 110, m = { l: 10, r: 10, t: 8, b: 22 };
+  const x = h => m.l + (h - D[0]) / (D[1] - D[0]) * (Wd - m.l - m.r), y = v => m.t + (1 - v) * (H - m.t - m.b);
+  const knees = [D[0], lo, hi, D[1]].filter(h => h >= D[0] && h <= D[1]).sort((a, b) => a - b);
+  const grayOf = name => CT.gray(CT.TISSUES.find(t => t[0] === name)[1], ct.W, ct.L);
+  const svg = `<svg class="ct-ramp" viewBox="0 0 ${Wd} ${H}" role="img" aria-label="${L(`Cửa sổ từ ${ctNum(lo)} tới ${ctNum(hi)} HU`, `Window from ${ctNum(lo)} to ${ctNum(hi)} HU`)}">`
+    + `<rect x="${x(Math.max(lo, D[0]))}" y="${m.t}" width="${Math.max(0, x(Math.min(hi, D[1])) - x(Math.max(lo, D[0])))}" height="${H - m.t - m.b}" fill="var(--accent)" opacity="0.1"/>`
+    + `<line x1="${m.l}" x2="${Wd - m.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line)"/>`
+    + [-1000, -500, 0, 500, 1000].map(h => `<text x="${x(h)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--muted)">${ctNum(h)}</text>`).join('')
+    + `<polyline points="${knees.map(h => `${x(h).toFixed(1)},${y(CT.gray(h, ct.W, ct.L)).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--chart-a)" stroke-width="2"/>`
+    + CT.TISSUES.map(([name, hu]) => `<circle cx="${x(hu)}" cy="${y(CT.gray(hu, ct.W, ct.L))}" r="3.5" fill="var(--fg)"><title>${gloss(name)}: ${ctNum(hu)} HU</title></circle>`).join('') + '</svg>';
+  const rows = CT.TISSUES.map(([name, hu]) => { const v = CT.gray(hu, ct.W, ct.L), c = Math.round(255 * v);
+    return `<tr><td><i style="background: rgb(${c},${c},${c})"></i>${gloss(name)}</td><td>${ctNum(hu)}</td><td>${Math.round(v * 100)}%</td></tr>`; }).join('');
+  const fatSoft = Math.round(100 * (grayOf('Mô mềm') - grayOf('Mỡ')));
+  return svg + `<div class="ct-wrap"><table class="ct-table"><tr><th>${L('Mô', 'Tissue')}</th><th>HU</th><th>${L('Mức xám', 'Gray')}</th></tr>${rows}</table></div>`
+    + `<p class="reading"><span>${L(`Cửa sổ \(${ctNum(lo)} \ldots ${ctNum(hi)}\) HU`, `Window \(${ctNum(lo)} \ldots ${ctNum(hi)}\) HU`).replace(/−/g, '-')}${L(' trải lên 256 mức xám: mỗi mức ứng với ', ' spread over 256 gray levels: each level covers ')}${(ct.W / 256).toFixed(1)} HU${L('; thấp hơn thành đen, cao hơn thành trắng.', '; below is black, above is white.')}</span>`
+    + `<span>${L(`Mỡ và mô mềm chênh 140 HU: cửa sổ này cho chúng chênh ${fatSoft}% thang xám.`, `Fat and soft tissue are 140 HU apart: this window makes them ${fatSoft}% of the gray scale apart.`)}</span></p>`;
+}
+function ctRefresh() {
+  const sec = panel.querySelector('section.ct');
+  if (sec) {
+    for (const k of ['W', 'L']) { sec.querySelector(`#ct-${k}`).value = ct[k]; sec.querySelector(`#o-ct-${k}`).textContent = ctNum(ct[k]); }
+    sec.querySelectorAll('[data-ctpreset]').forEach(b => b.setAttribute('aria-pressed', String(ctPreset() === b.dataset.ctpreset)));
+    const view = sec.querySelector('#ct-view');
+    view.getContext('2d').drawImage(ctImage(), 0, 0);
+    const p = ct.pick && ct.pick[1] * ctSlice.N + ct.pick[0];
+    sec.querySelector('.ct-read').textContent = ct.pick
+      ? `(${ct.pick[0]}, ${ct.pick[1]}): ${ctNum(ctSlice.hu[p])} HU · ${gloss(CT.TISSUES[ctSlice.tissue[p]][0])} · ${L('xám', 'gray')} ${Math.round(100 * CT.gray(ctSlice.hu[p], ct.W, ct.L))}%`
+      : L('Nhấp vào ảnh để đọc HU.', 'Click the image to read the HU.');
+    const out = sec.querySelector('.ct-out');
+    out.innerHTML = ctOut();
+    window.MathJax?.typesetPromise?.([out]);
+  }
+  if (showsDemo(level, 'ct')) paintLive(level);
+}
+function ctSlider(t) { ct[t.dataset.ct] = +t.value; ctRefresh(); }
+panel.addEventListener('click', e => {
+  if (e.target.id !== 'ct-view') return;
+  const r = e.target.getBoundingClientRect(), N = ctSlice.N;
+  ct.pick = [Math.min(N - 1, Math.floor((e.clientX - r.left) / r.width * N)), Math.min(N - 1, Math.floor((e.clientY - r.top) / r.height * N))];
+  ctRefresh();
+});
+
 panel.addEventListener('change', e => {
   if (e.target.id === 'live-causal') live.causal = e.target.checked;
   else if (e.target.id === 'live-scale') live.scale = e.target.checked;
@@ -1426,6 +1508,7 @@ panel.addEventListener('click', e => {
   else if (b.dataset.lab) labAction(b.dataset.lab);
   else if (b.dataset.smpdo) smpDo(b.dataset.smpdo);
   else if (b.dataset.cnndo || b.dataset.cnnsample) cnnDo(b);
+  else if (b.dataset.ctpreset) { Object.assign(ct, CT.PRESETS[b.dataset.ctpreset]); ctRefresh(); }
   else if (b.dataset.labset) labSet(b.dataset.labset, b.dataset.val);
   else if (b.dataset.act === 'link') copyLink(b);
   else if (b.dataset.act === 'back') select(null);

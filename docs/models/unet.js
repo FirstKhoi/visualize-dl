@@ -123,7 +123,23 @@ logits = nn.Conv2d(64, 2, 1)(d1)              # 2×388×388`
 loss = (w * F.cross_entropy(logits, target, reduction="none")).sum()
 pred = logits.argmax(1) == 1                                       # chấm điểm: Dice với nhãn gt
 dice = 2 * (pred & gt).sum() / (pred.sum() + gt.sum())`
-  }, { tag: 'Conv 1×1', size: [0.12, sp(388), sp(388)], ref: [ref('unet', 'mục 3, bản đồ trọng số'), ref('vnet', 'Dice làm hàm loss'), ref('mienye', 'Bảng 2: DSC')] }), pos: [12.2, Y[0], 0] }
+  }, { tag: 'Conv 1×1', size: [0.12, sp(388), sp(388)], ref: [ref('unet', 'mục 3, bản đồ trọng số'), ref('vnet', 'Dice làm hàm loss'), ref('mienye', 'Bảng 2: DSC')] }), pos: [12.2, Y[0], 0] },
+  // added after the paper's blocks, so the links to those (#unet.i.j) keep their numbers
+  { ...n('Cửa sổ HU (tiền xử lý CT)', 'norm', '1×512×512 (HU) → 1×512×512 ∈ [0, 1]', {
+    what: 'Bước đầu tiên khi đưa ảnh CT vào U-Net, thay cho ảnh kính hiển vi của bài gốc. Mỗi pixel CT là một số Hounsfield (HU), đo mức cản tia X so với nước: không khí là −1000 và nước là 0 theo định nghĩa, mỡ khoảng −100, mô mềm vài chục, xương đặc từ khoảng +1000 trở lên. Cửa sổ chọn một khoảng HU, từ L − W/2 tới L + W/2, rồi trải nó lên thang xám 0…1: thấp hơn thành đen, cao hơn thành trắng.',
+    formula: [R`\mathrm{HU} = 1000 \cdot \frac{\mu - \mu_{\text{nước}}}{\mu_{\text{nước}} - \mu_{\text{không khí}}}`, R`I = \mathrm{clip}\!\left(\frac{\mathrm{HU} - (L - W/2)}{W},\ 0,\ 1\right)`],
+    why: R`Một lát CT trải từ \(-1000\) (không khí) tới hơn \(+1000\) (xương), nhưng màn hình chỉ có 256 mức xám, còn các mô mềm khác nhau chỉ chênh vài chục HU. Trải cả \(2000\) HU lên 256 mức thì mỗi mức xám gánh \(2000 / 256 = 7.8\) HU, và cơ, mỡ, máu gần như cùng màu. Cửa sổ hẹp đổi tầm nhìn lấy độ tương phản: \(W = 400\) cho mỗi mức xám \(1.6\) HU, nhưng mọi thứ ngoài \([-160, 240]\) HU bị cắt thành đen hoặc trắng. Vì vậy bác sĩ chuyển qua lại giữa các preset, còn mạng học sâu thường nhận một cửa sổ cố định, hoặc vài cửa sổ xếp thành vài kênh như ảnh màu. Cửa sổ hẹp cũng làm nhiễu rõ hơn: cùng \(\sigma = 10\) HU, ở \(W = 400\) nhiễu chiếm \(2.5\%\) thang xám, ở \(W = 1500\) chỉ \(0.67\%\).`,
+    example: R`Cửa sổ mô mềm \(W = 400, L = 40\): mỡ \(-100\) HU thành \((-100 - (40 - 200)) / 400 = 0.15\), mô mềm \(40\) HU thành \(0.5\), chênh \(0.35\). Cửa sổ phổi \(W = 1500, L = -600\): hai mô đó chỉ chênh \(140 / 1500 = 0.093\), nhưng phổi \((-850)\) và không khí \((-1000)\) chênh \(0.1\), trong khi ở cửa sổ mô mềm cả hai cùng đen \((0)\).`,
+    params: 'Không có tham số học: W và L chọn tay hoặc theo preset.',
+    code: `import numpy as np, pydicom
+ds = pydicom.dcmread("lat_cat.dcm")
+hu = ds.pixel_array * float(ds.RescaleSlope) + float(ds.RescaleIntercept)   # số lưu trong file → HU
+
+def window(hu, W, L):
+    return np.clip((hu - (L - W / 2)) / W, 0, 1)
+
+x = np.stack([window(hu, 1500, -600), window(hu, 400, 40), window(hu, 1800, 400)])   # 3 cửa sổ = 3 kênh`
+  }, { tag: 'Cửa sổ HU', live: 'ct', size: [0.14, sp(512), sp(512)], ref: [ref('hounsfield', 'giá trị HU điển hình'), ref('ctwindow', 'preset phổi, mô mềm, xương')] }), pos: [-16.6, Y[0], 0] }
 ], links: [
   { a: { i: 0, s: 'r' }, b: { i: 1, s: 'l' } },
   ...[1, 2, 3, 4].map(i => ({ a: { i, s: 'd' }, b: { i: i + 1, s: 'l' } })),
@@ -131,6 +147,7 @@ dice = 2 * (pred & gt).sum() / (pred.sum() + gt.sum())`
   ...[6, 7, 8].map(i => ({ a: { i, s: 'r' }, b: { i: i + 1, s: 'd' } })),
   { a: { i: 9, s: 'r' }, b: { i: 10, s: 'l' } },
   { a: { i: 10, s: 'r' }, b: { stub: 10, s: 'r' }, label: '2 lớp' },
-  ...[0, 1, 2, 3].map(k => ({ a: { i: k + 1, s: 'r' }, b: { i: 9 - k, s: 'l' }, kind: 'concat', label: crop(k) }))
+  ...[0, 1, 2, 3].map(k => ({ a: { i: k + 1, s: 'r' }, b: { i: 9 - k, s: 'l' }, kind: 'concat', label: crop(k) })),
+  { a: { i: 11, s: 'r' }, b: { i: 0, s: 'l' }, label: 'nếu là CT' }
 ] });
 })();

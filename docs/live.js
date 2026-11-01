@@ -412,3 +412,42 @@ const CNN = (() => {
   }
   return { run, decode, prepare };
 })();
+
+// CT windowing on a synthetic chest slice drawn in code (no patient data): each region holds a typical Hounsfield value
+// (HU: air −1000 and water 0 by definition), plus seeded noise; a window [L − W/2, L + W/2] maps HU onto gray 0…1.
+const CT = (() => {
+  // the phantom's tissues, in the order regions are painted; typical HU: Radiopaedia, "Hounsfield unit"
+  const TISSUES = [['Không khí', -1000], ['Phổi', -850], ['Mỡ', -100], ['Nước', 0], ['Mô mềm', 40], ['Xương', 1000]];
+  const [AIR, LUNG, FAT, WATER, SOFT, BONE] = TISSUES.keys();
+  // common viewing presets: Radiopaedia, "Windowing (CT)"
+  const PRESETS = { 'Phổi': { W: 1500, L: -600 }, 'Mô mềm': { W: 400, L: 40 }, 'Xương': { W: 1800, L: 400 } };
+  const gray = (hu, W, L) => Math.min(1, Math.max(0, (hu - (L - W / 2)) / W));
+  const inEllipse = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+
+  // an axial slice through the chest, patient lying on the back (front up, back down), in a 128-pixel frame
+  function slice({ N = 128, noise = 10, seed = 3 } = {}) {
+    const k = N / 128, hu = new Float32Array(N * N), tissue = new Uint8Array(N * N), g = gauss(rng(seed));
+    const disc = (x, y, cx, cy, r) => inEllipse(x, y, cx, cy, r, r);
+    const lung = (x, y) => inEllipse(x, y, 40, 62, 19, 27) || inEllipse(x, y, 88, 62, 19, 27);
+    const vessels = [[34, 50], [46, 48], [30, 66], [47, 72], [38, 80], [82, 50], [94, 48], [98, 64], [80, 70]];
+    const ribs = [145, 165, 195, 215, 35, 15, -15, -35].map(a => [64 + 50 * Math.cos(a * Math.PI / 180), 68 + 36 * Math.sin(a * Math.PI / 180)]);
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const x = (j + 0.5) / k - 0.5, y = (i + 0.5) / k - 0.5; // the pixel's center, in 128-frame pixels
+      let t = AIR;
+      if (inEllipse(x, y, 64, 68, 58, 44)) t = FAT;                     // skin and fat under it
+      if (inEllipse(x, y, 64, 68, 54, 40)) t = SOFT;                    // chest wall
+      if (inEllipse(x, y, 64, 30, 5, 3) || ribs.some(([cx, cy]) => disc(x, y, cx, cy, 3.2))) t = BONE; // sternum, ribs
+      if (lung(x, y)) t = x > 64 && y >= 79 ? WATER : LUNG;              // fluid settles at the back of the right lung
+      if (lung(x, y) && t === LUNG && vessels.some(([cx, cy]) => disc(x, y, cx, cy, 1.3))) t = SOFT; // vessels
+      if (inEllipse(x, y, 64, 70, 13, 18)) t = FAT;                     // fat around the heart
+      if (inEllipse(x, y, 64, 70, 10.5, 14) || disc(x, y, 76, 88, 4)) t = SOFT; // heart, aorta
+      if (disc(x, y, 64, 100, 8)) t = BONE;                             // vertebra
+      tissue[i * N + j] = t;
+      hu[i * N + j] = TISSUES[t][1] + (noise ? noise * g() : 0);
+    }
+    return { N, hu, tissue };
+  }
+
+  console.assert(gray(-600, 1500, -600) === 0.5 && gray(-100, 400, 40) === 0.15 && gray(1000, 400, 40) === 1 && gray(-1000, 400, 40) === 0, 'CT window mismatch');
+  return { TISSUES, PRESETS, gray, slice };
+})();
