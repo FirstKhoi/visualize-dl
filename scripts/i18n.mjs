@@ -23,8 +23,9 @@ export function texts(root) {
   return [...out];
 }
 
-// texts not tied to one model: concept names ("Cũng xuất hiện ở") and paper titles
-export const shared = get => [...Object.keys(get('CONCEPTS')), ...Object.values(get('PAPER')).map(p => p[0])].filter(s => VI.test(s));
+// texts not tied to one model: concept names ("Cũng xuất hiện ở"), paper titles, the tab groups and the learning paths
+export const shared = get => [...Object.keys(get('CONCEPTS')), ...Object.values(get('PAPER')).map(p => p[0]), ...get('GROUPS').map(g => g[0]),
+  ...get('PATHS').flatMap(p => [p.title, p.goal, ...p.steps.map(s => s[0])])].filter(s => VI.test(s));
 
 export function load() {
   const get = loadPage(existsSync(new URL('../i18n/en.js', import.meta.url)) ? ['i18n/en.js'] : []);

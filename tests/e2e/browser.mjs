@@ -47,7 +47,7 @@ export async function start() {
       if (fonts) await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.continue());
       else await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ body: '', contentType: 'text/css' }));
       await page.goto(base + hash);
-      await page.waitForSelector('.panel h2');
+      await page.waitForSelector('.panel h2, #home:not([hidden]) h1'); // a block, or the home page when there is no link
       await page.waitForTimeout(600);
       if (mathjax) await page.evaluate(() => window.MathJax.startup.promise.then(() => window.MathJax.typesetPromise([document.getElementById('panel')])));
       return page;

@@ -61,6 +61,50 @@ const EN_TEXT = {
   "yypk16": "Liu et al. (2022), A ConvNet for the 2020s (ConvNeXt)", // Liu và cộng sự (2022), A ConvNet for the 2020s (ConvNeXt)
   "1g4exu2": "Woo et al. (2023), ConvNeXt V2: Co-designing and Scaling ConvNets with Masked Autoencoders", // Woo và cộng sự (2023), ConvNeXt V2: Co-designing and Scaling ConvNets…
   "w1m0bq": "Touvron et al. (2021), Going deeper with Image Transformers (CaiT, layer scale)", // Touvron và cộng sự (2021), Going deeper with Image Transformers (CaiT…
+  "1td7e8e": "Maier-Hein et al. (2024), Metrics reloaded: recommendations for image analysis validation", // Maier-Hein và cộng sự (2024), Metrics reloaded: recommendations for i…
+  "87tg2h": "Reinke et al. (2024), Understanding metric-related pitfalls in image analysis validation", // Reinke và cộng sự (2024), Understanding metric-related pitfalls in im…
+  "1c2msl9": "Rajpurkar et al. (2017), CheXNet: Radiologist-Level Pneumonia Detection on Chest X-Rays with Deep Learning", // Rajpurkar và cộng sự (2017), CheXNet: Radiologist-Level Pneumonia Det…
+  "1lw5bi3": "Wang et al. (2017), ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases", // Wang và cộng sự (2017), ChestX-ray8: Hospital-scale Chest X-ray Datab…
+  // tab groups and learning paths (nav.js)
+  "1lxteqd": "Image CNNs", // CNN ảnh
+  "1uqiqz0": "Image generation", // Sinh ảnh
+  "l1bwb5": "Sequences", // Chuỗi
+  "1sabsg5": "Medical imaging", // Y tế
+  "b327q4": "Medical image segmentation", // Phân vùng ảnh y khoa
+  "1cux256": "From a CT slice to a segmentation mask, and how to score that mask fairly.", // Từ một lát CT tới mặt nạ phân vùng, và cách chấm điểm mặt nạ đó cho đ…
+  "13uzdrr": "HU windows for CT images", // Cửa sổ HU cho ảnh CT
+  "165xvp3": "U-Net: the way down and the way up", // U-Net: nhánh xuống và nhánh lên
+  "nq1rat": "Crop and concatenate: U-Net's shortcuts", // Cắt và nối: đường tắt của U-Net
+  "ecsarq": "Dice, cross-entropy and HD95", // Dice, cross-entropy và HD95
+  "18lni3u": "Chest X-ray diagnosis", // Chẩn đoán X-quang ngực
+  "10si71n": "Reusing a CNN trained on ImageNet to detect 14 diseases on chest films.", // Dùng lại một CNN train trên ImageNet để dò 14 bệnh trên phim ngực.
+  "oe21io": "Dense block: concatenate instead of add", // Dense block: nối thay vì cộng
+  "1dcbg6g": "CheXNet: 14 labels instead of 1000 classes", // CheXNet: 14 nhãn thay cho 1000 lớp
+  "1gzb7rc": "Sigmoid for images with several diseases", // Sigmoid cho ảnh nhiều bệnh
+  "1m0ctt9": "Weighted BCE for rare diseases", // BCE có trọng số cho bệnh hiếm
+  "umcqoz": "A CNN on MedMNIST", // CNN trên MedMNIST
+  "i9mcsi": "Attention from the numbers up", // Attention từ con số
+  "vsful6": "Self-attention with live numbers, then what today's LLMs changed.", // Self-attention với số chạy thật, rồi những gì các LLM hiện nay đổi đi.
+  "yktmwi": "Self-attention, live numbers", // Self-attention, số chạy thật
+  "bvqlvd": "The causal mask", // Mặt nạ nhân quả
+  "s71rht": "Residual shortcuts and the gradient", // Đường tắt residual và gradient
+  "rwl1wx": "LLaMA 3: RoPE, GQA and the KV cache", // LLaMA 3: RoPE, GQA và KV cache
+  "8loryp": "Temperature and top-p when generating text", // Nhiệt độ và top-p khi sinh chữ
+  "1f9vcht": "ViT: an image as a sequence of patches", // ViT: ảnh thành chuỗi ô
+  "1n9ucmd": "Swin: attention in shifted windows", // Swin: attention trong cửa sổ dịch
+  "19mazjd": "CNNs from the numbers up", // CNN từ con số
+  "1fhgjjm": "From one 3×3 filter on handwritten digits to ImageNet networks.", // Từ một bộ lọc 3×3 trên chữ số viết tay tới các mạng ImageNet.
+  "17y49w3": "Draw a digit for a CNN", // Vẽ một chữ số cho CNN
+  "1glko6o": "3×3 convolution and feature maps", // Tích chập 3×3 và feature map
+  "bxqy0d": "ResNet: bottlenecks and shortcuts", // ResNet: bottleneck và đường tắt
+  "1lm00e9": "ConvNeXt: a CNN that learned from Transformers", // ConvNeXt: CNN học từ Transformer
+  "aiydrq": "How a network learns", // Một mạng học như thế nào
+  "123u7i8": "Train a small network right in the page, watch it overfit, and watch the gradient travel through deep networks.", // Train một mạng nhỏ ngay trong trang, xem nó overfit, và xem gradient …
+  "2lx9oi": "The training lab", // Phòng thí nghiệm huấn luyện
+  "rztzd0": "Backprop through one Linear layer", // Backprop qua một lớp Linear
+  "1g3jkm1": "Softmax and cross-entropy", // Softmax và cross-entropy
+  "1j3d4ww": "The gradient through 100 layers, with and without shortcuts", // Gradient qua 100 lớp, có và không có đường tắt
+  "shbu6b": "The gradient through time: RNN and LSTM", // Gradient qua thời gian: RNN và LSTM
   // ---- CNN (MNIST) ----
   "14y0dpc": "Small CNN on MNIST", // CNN nhỏ trên MNIST
   "p91tv1": "digit", // chữ số
@@ -112,7 +156,6 @@ const EN_TEXT = {
   "mxwwdt": "By default all 200 points go through the network at every step (full batch), so the loss curve is smooth. Pick batch 32 or 8 to see mini-batches: each step only looks at a group of points, reshuffled after every pass over the data (epoch), so it is cheaper but the loss curve shakes. Real networks almost always use mini-batches.", // Mặc định cả 200 điểm đi qua mạng trong mỗi bước (full batch), nên đườ…
   "38ly1w": "X = torch.tensor(points)   # (200, 2)\ny = torch.tensor(labels)   # (200,), 0 or 1", // X = torch.tensor(points) # (200, 2) y = torch.tensor(labels) # (200,)…
   "1s7gj6h": "Each hidden neuron computes a linear combination of x and y. Geometrically, each neuron is a straight line cutting the plane in two.", // Mỗi neuron ẩn tính một tổ hợp tuyến tính của x và y. Về hình học, mỗi…
-  "1gt0c0x": "The heatmap on the block is the real matrix \\(W_1\\) (2 rows × H columns), changing color as the network learns: pink is positive, blue negative. He initialization: \\(W \\sim \\mathcal{N}(0, 2/\\text{fan\\_in})\\), so the size of the signal neither shrinks nor swells through the ReLU layers.", // Heatmap trên khối là ma trận \(W_1\) thật (2 hàng × H cột), đổi màu k…
   "erwlbk": "z1 = a0 @ W1 + b1           # forward\ndW1 = a0.T @ d1 / n          # backward: the weights' gradient\nd_prev = d1 @ W1.T              # the gradient flowing back to the previous layer", // z1 = a0 @ W1 + b1 # forward dW1 = a0.T @ d1 / n # backward: gradient …
   "10gyjtx": "\\frac{\\partial L}{\\partial W_1} = a_0^\\top\\, \\delta_1, \\qquad \\frac{\\partial L}{\\partial b_1} = \\textstyle\\sum_i \\delta_1, \\qquad \\delta_{\\text{prev}} = \\delta_1\\, W_1^\\top", // \frac{\partial L}{\partial W_1} = a_0^\top\, \delta_1, \qquad \frac{\…
   "lbfmup": "Activation 1", // Kích hoạt 1
@@ -131,6 +174,7 @@ const EN_TEXT = {
   "giz67g": "The gradient of softmax + cross-entropy is surprisingly neat: just the probabilities minus the label. A right and confident guess gives a gradient near 0; a wrong one gives a large gradient that pulls hard on the weights before it.", // Gradient của softmax + cross-entropy gọn đến bất ngờ: chỉ là xác suất…
   "5m1s71": "\\(p = [0.3,\\ 0.7]\\), label \\(y = 1\\): \\(L = -\\log 0.7 = 0.357\\), \\(\\delta_3 = [0.3,\\ -0.3]\\).", // \(p = [0.3,\ 0.7]\), nhãn \(y = 1\): \(L = -\log 0.7 = 0.357\), \(\de…
   "1m6gh6t": "loss = F.cross_entropy(logits, y)    # softmax and −log in one\nd3 = (logits.softmax(-1) - F.one_hot(y, 2)) / n", // loss = F.cross_entropy(logits, y) # gộp softmax + −log d3 = (logits.s…
+  "y7ci8j": "The heatmap on the block is the real matrix \\(W_1\\) (2 rows × H columns), changing color as the network learns: pink is positive, blue negative. He initialization: \\(W \\sim \\mathcal{N}(0, 2/\\text{fan_in})\\), so the size of the signal neither shrinks nor swells through the ReLU layers.", // Heatmap trên khối là ma trận \(W_1\) thật (2 hàng × H cột), đổi màu k…
   // ---- Transformer ----
   "1sdtab3": "n source tokens, m target tokens → probabilities m×V", // token nguồn n, token đích m → xác suất m×V
   "1phps6h": "A machine translation model (seq2seq) built on attention alone, with no RNN or CNN at all. The encoder reads the source sentence into context vectors. The decoder generates the target sentence one token at a time, looking the source sentence up again at every step through cross-attention.", // Mô hình dịch máy (seq2seq) chỉ dùng attention, bỏ hẳn RNN và CNN. Enc…

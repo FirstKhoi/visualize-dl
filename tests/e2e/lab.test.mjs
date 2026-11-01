@@ -31,9 +31,10 @@ test('leaving the MLP stops its training run', async () => {
   await page.click('[data-labset="data"][data-val="Xoắn ốc"]'); // never reaches loss < 0.001, so it can't stop by itself
   await page.click('[data-lab="run"]');
   await page.waitForTimeout(300);
+  await page.click('[data-group]:text-is("Transformer")');
   await page.click('#m-transformer');
   await page.waitForTimeout(800);
-  await page.click('#m-mlp');
+  await page.click('[data-group]:text-is("Huấn luyện")'); // a group of one: opens the lab
   await page.waitForTimeout(400);
   const a = await lab.steps(page);
   await page.waitForTimeout(800);

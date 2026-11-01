@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { run, pageScripts, loadPage } from './load.mjs';
 
-test('the local scripts of index.html are found: shared code first, then the models', () => {
+test('the local scripts of index.html are found: shared code first, then the models, then the navigation over them', () => {
   const scripts = pageScripts();
   assert.deepEqual(scripts.slice(0, 2), ['blocks.js', 'live.js']);
-  assert.ok(scripts.slice(2).length > 0 && scripts.slice(2).every(s => s.startsWith('models/')), scripts.join(', '));
+  assert.equal(scripts.at(-1), 'nav.js');
+  assert.ok(scripts.slice(2, -1).length > 0 && scripts.slice(2, -1).every(s => s.startsWith('models/')), scripts.join(', '));
 });
 
 test('a failing console.assert inside a script fails the load', () => {
@@ -36,6 +37,16 @@ test('TeX commands only appear inside \\( \\) or \\[ \\]: MathJax leaves the pro
       const prose = (nd.info?.[f] ?? '').replace(/\\\(.*?\\\)|\\\[.*?\\\]/gs, '');
       if (/\\[a-zA-Z,;!]/.test(prose)) bad.push(`${code} ${f}: ${prose.match(/.{0,20}\\[a-zA-Z,;!].{0,12}/)[0]}`);
     }
+    (nd.children || []).forEach((k, j) => walk(k, `${code}.${j}`));
+  })(m, key);
+  assert.deepEqual(bad, []);
+});
+
+test('no TeX command inside \\text{…}: MathJax prints it as typed, so "\\text{fan\\_in}" would show a backslash', () => {
+  const MODELS = loadPage()('MODELS'), bad = [], inText = /\\text(?:tt|rm|bf|it)?\{[^{}]*\\[^{}]*\}/;
+  for (const [key, m] of Object.entries(MODELS)) (function walk(nd, code) {
+    for (const s of [...['what', 'why', 'example', 'params'].map(f => nd.info?.[f]), ...(nd.info?.formula || [])])
+      if (typeof s === 'string' && inText.test(s)) bad.push(`${code}: ${s.match(inText)[0]}`);
     (nd.children || []).forEach((k, j) => walk(k, `${code}.${j}`));
   })(m, key);
   assert.deepEqual(bad, []);

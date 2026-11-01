@@ -107,6 +107,60 @@ const pTotal = 9408 + 128 + body.reduce((t, b) => t + b._p, 0) + 2 * 1024 + 1024
 // self-check: must reproduce torchvision's densenet121 parameter count
 console.assert(stem && pTotal === 7978856 && c === 1024 && H === 7, 'DenseNet-121 size mismatch');
 
+// CheXNet: this DenseNet-121 on chest X-rays, 14 labels instead of ImageNet's 1000 classes
+const pBack = pTotal - (1024 * 1000 + 1000), pHead = 1024 * 14 + 14;
+const ex = { P: 13, N: 987 }, wPos = ex.N / (ex.P + ex.N), wNeg = ex.P / (ex.P + ex.N);
+const lossPos = -wPos * Math.log(0.2), lossNeg = -wNeg * Math.log(0.8);
+// self-check: the two classes weigh the same in total, and the head is torchvision's with num_classes = 14
+console.assert(Math.abs(ex.P * wPos - ex.N * wNeg) < 1e-12 && pBack + pHead === 6968206, 'CheXNet numbers mismatch');
+const chexnet = n('CheXNet (2017)', 'block', '3×224×224 → 14 xác suất', {
+  what: 'Chính DenseNet-121 này, dùng cho ảnh X-quang ngực (Rajpurkar và cộng sự, 2017). Lớp FC 1000 lớp của ImageNet được thay bằng một lớp ra 14 điểm số, mỗi bệnh một điểm, rồi mỗi điểm qua một sigmoid riêng, vì một ảnh có thể có nhiều bệnh cùng lúc. Dữ liệu là ChestX-ray14: 112 120 ảnh chụp thẳng của 30 805 bệnh nhân, nhãn được trích tự động từ báo cáo của bác sĩ.',
+  why: `Ý chính của bài: không cần kiến trúc mới, một mạng ImageNet thay đầu ra rồi train lại trên đủ nhiều ảnh y khoa là làm được việc. Hai chỗ dễ sai nằm ngoài mạng. Thứ nhất là cách chia tập: trung bình mỗi bệnh nhân có ${(112120 / 30805).toFixed(2)} ảnh. Chia ngẫu nhiên theo ảnh thì cùng một người có ảnh ở cả tập train lẫn tập test, và mạng có thể nhận ra người (dáng lồng ngực, dây điện cực, máy móc) thay vì nhận ra bệnh, nên điểm test bị thổi phồng. CheXNet chia theo bệnh nhân: không ai có mặt ở hai tập. Thứ hai là nhãn: trích từ văn bản báo cáo bằng xử lý ngôn ngữ nên có nhiễu, và không mô hình nào đáng tin hơn chính nhãn dùng để chấm nó.`,
+  example: 'Bài toán viêm phổi của bài báo: trên tập test 420 ảnh được 4 bác sĩ X-quang gán nhãn, F1 của CheXNet là 0.435, trung bình của các bác sĩ là 0.387.',
+  params: R`\(${fmt(pBack + pHead)}\): phần đặc trưng của DenseNet-121 \(${fmt(pBack)}\) cộng lớp ra 14 nhãn \(${fmt(pHead)}\).`,
+  code: `from torchvision.models import densenet121, DenseNet121_Weights
+model = densenet121(weights=DenseNet121_Weights.IMAGENET1K_V1)   # khởi tạo từ ImageNet
+model.classifier = nn.Linear(1024, 14)                          # 14 bệnh thay cho 1000 lớp
+probs = torch.sigmoid(model(x))                                 # (B, 14): mỗi bệnh một xác suất`
+}, { tag: 'CheXNet', float: true, hint: '5 phần', size: [1.2, 1.2, 1.0], ref: [ref('chexnet'), ref('chestxray14', 'bộ dữ liệu ChestX-ray14')], children: [
+  n('Ảnh X-quang ngực', 'io', '3×224×224', {
+    what: 'Ảnh chụp thẳng từ ChestX-ray14, thu nhỏ về 224×224 và chuẩn hoá theo trung bình, độ lệch chuẩn của ImageNet như ảnh vào của DenseNet-121. Ảnh X-quang chỉ có một kênh xám; lặp nó thành 3 kênh để dùng được trọng số ImageNet. Khi train, ảnh được lật ngang ngẫu nhiên.',
+    why: 'Thu nhỏ làm mất chi tiết nhỏ như các nốt phổi, đổi lại train nhanh và dùng lại được nguyên mạng ImageNet. Lật ngang là tăng cường dữ liệu quen thuộc với ảnh thường, nhưng trên phim ngực nó đưa tim sang bên phải, điều rất hiếm ở người thật: phép tăng cường nào cũng nên hỏi xem ảnh sau khi biến đổi có còn là một ảnh có thể gặp không.',
+    code: `tf = T.Compose([T.Grayscale(3), T.Resize((224, 224)), T.RandomHorizontalFlip(), T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])`
+  }, { tag: 'X-quang', size: [0.06, 1.5, 1.5] }),
+  n('Đặc trưng DenseNet-121', 'block', '3×224×224 → 1024', {
+    what: 'Toàn bộ phần đặc trưng của DenseNet-121 bên dưới, tới global average pooling. Khởi tạo bằng trọng số ImageNet rồi train lại hết (end-to-end), không đóng băng lớp nào.',
+    why: 'Ảnh X-quang khác xa ảnh ImageNet, nhưng các lớp đầu nhận cạnh và kết cấu, những thứ vẫn dùng lại được. Bắt đầu từ trọng số ImageNet thay vì ngẫu nhiên là cách thường gặp khi dữ liệu y khoa có hạn.',
+    params: R`\(${fmt(pTotal)} - ${fmt(1024 * 1000 + 1000)} = ${fmt(pBack)}\): cả DenseNet-121 trừ lớp FC 1000 lớp.`,
+    code: `h = torch.flatten(F.adaptive_avg_pool2d(F.relu(model.features(x)), 1), 1)   # (B, 1024)`
+  }, { tag: 'DenseNet-121', size: [0.9, 1.2, 1.2] }),
+  n('Linear 1024 → 14', 'linear', '1024 → 14', {
+    what: 'Thay lớp FC 1000 lớp. Mỗi hàng của W dò một bệnh: xẹp phổi, tim to, đông đặc, phù phổi, tràn dịch màng phổi, khí phế thũng, xơ phổi, thoát vị, thâm nhiễm, khối u, nốt, dày màng phổi, viêm phổi, tràn khí màng phổi.',
+    formula: [R`z = W h + b, \qquad W \in \mathbb{R}^{14 \times 1024}`],
+    params: R`\(1024 \times 14 + 14 = ${fmt(pHead)}\).`,
+    code: `model.classifier = nn.Linear(1024, 14)`
+  }, { tag: 'Linear 14', size: [ch(14), 0.9, 0.9] }),
+  n('Sigmoid từng nhãn', 'act', '14 → 14', {
+    what: 'Mỗi điểm số qua một sigmoid riêng, thành xác suất có bệnh đó. 14 xác suất không cần cộng lại bằng 1.',
+    formula: [R`p_c = \sigma(z_c) = \frac{1}{1 + e^{-z_c}}, \qquad c = 1, \dots, 14`],
+    why: 'Softmax buộc các lớp tranh nhau: một lớp tăng thì các lớp khác giảm. Điều đó hợp khi mỗi ảnh có đúng một nhãn, như ImageNet. Một phim X-quang có thể vừa tràn dịch vừa xẹp phổi, nên mỗi bệnh là một câu hỏi có hay không riêng.',
+    example: R`\(z = [2,\ 0,\ -3]\): sigmoid cho \([0.881,\ 0.5,\ 0.047]\), tổng \(1.428\); softmax sẽ cho \([0.876,\ 0.118,\ 0.006]\), tổng đúng bằng 1.`,
+    code: `probs = torch.sigmoid(logits)   # không phải softmax`
+  }, { tag: 'Sigmoid', size: SLAB }),
+  n('BCE có trọng số', 'act', '14 → loss', {
+    what: R`Loss của CheXNet khi chỉ dò viêm phổi (một đầu ra): binary cross-entropy, nhưng lỗi trên ảnh có bệnh nhân với trọng số lớn \(w_{+}\), lỗi trên ảnh không bệnh nhân với trọng số nhỏ \(w_{-}\). \(|P|\) và \(|N|\) là số ảnh dương tính và âm tính trong tập train.`,
+    formula: [R`L = -w_{+}\, y \log p - w_{-}\, (1 - y) \log (1 - p), \qquad p = p(Y{=}1 \mid X)`, R`w_{+} = \frac{|N|}{|P| + |N|}, \qquad w_{-} = \frac{|P|}{|P| + |N|}`,
+      R`L_{14} = \sum_{c=1}^{14} \big[ -y_c \log p_c - (1 - y_c) \log (1 - p_c) \big]`],
+    why: R`Bệnh càng hiếm thì ảnh âm tính càng áp đảo, và một mạng đoán "không bệnh" cho mọi ảnh đã được loss thấp (như tổn thương 1% ảnh ở khối đầu ra của U-Net). Trọng số bù lại: \(|P|\, w_{+} = |N|\, w_{-} = \frac{|P|\,|N|}{|P| + |N|}\), nên tổng trọng số của hai lớp bằng nhau. Khi mở rộng ra 14 bệnh, bài báo đổi sang tổng 14 BCE không trọng số (dòng thứ ba). Muốn vẫn cân bằng từng bệnh thì trong PyTorch đặt \(\texttt{pos_weight} = |N| / |P|\) cho mỗi bệnh: loss đó chỉ khác loss của bài một hằng số nhân \(w_{-}\), nên gradient cùng hướng.`,
+    example: R`Giả sử ${ex.P} trên ${ex.P + ex.N} ảnh train có viêm phổi: \(w_{+} = ${ex.N}/${ex.P + ex.N} = ${wPos.toFixed(3)}\), \(w_{-} = ${ex.P}/${ex.P + ex.N} = ${wNeg.toFixed(3)}\). Tổng trọng số mỗi lớp: \(${ex.P} \times ${wPos.toFixed(3)} = ${(ex.P * wPos).toFixed(2)}\) và \(${ex.N} \times ${wNeg.toFixed(3)} = ${(ex.N * wNeg).toFixed(2)}\). Ảnh có bệnh mà mạng chỉ cho \(p = 0.2\): loss \(-${wPos.toFixed(3)} \log 0.2 = ${lossPos.toFixed(3)}\). Ảnh không bệnh mà mạng cho \(p = 0.2\): loss \(-${wNeg.toFixed(3)} \log 0.8 = ${lossNeg.toFixed(4)}\), nhỏ hơn khoảng ${Math.round(lossPos / lossNeg)} lần.`,
+    code: `# một bệnh, như bài báo: w_pos = n_neg / (n_pos + n_neg), w_neg = n_pos / (n_pos + n_neg)
+loss = -(w_pos * y * torch.log(p) + w_neg * (1 - y) * torch.log(1 - p)).mean()
+# 14 bệnh, mỗi bệnh một trọng số (cùng hướng gradient, khác một hằng số nhân)
+loss = F.binary_cross_entropy_with_logits(logits, y, pos_weight=n_neg / n_pos)   # n_neg, n_pos: (14,)`
+  }, { tag: 'BCE (w)', size: SLAB })
+] });
+
 MODELS.densenet = n('DenseNet-121', 'block', '3×224×224 → 1000', {
   what: 'Mạng tích chập 121 lớp có trọng số cho phân loại ảnh ImageNet. Trong mỗi dense block, mỗi lớp nhận bản đồ đặc trưng của tất cả các lớp trước nó (nối theo chiều kênh) và chuyển output của mình cho tất cả các lớp sau. Giữa các khối là transition layer: conv 1×1 giảm kênh, average pool giảm kích thước.',
   formula: [R`\text{ResNet:}\quad x_\ell = H_\ell(x_{\ell-1}) + x_{\ell-1}`, R`\text{DenseNet:}\quad x_\ell = H_\ell\big([x_0, x_1, \dots, x_{\ell-1}]\big)`],
@@ -131,6 +185,7 @@ logits = model.classifier(z)                   # nn.Linear(1024, 1000)`
   relu('1024×7×7', slab(7)),
   gapNode(1024, 7, 'Không có tham số. Chồng 1024 kênh này gồm 512 kênh từ transition 3 (bản tóm tắt các khối trước) và 16 × 32 kênh do từng lớp của khối 4 viết ra, nên bộ phân loại quyết định dựa trên đặc trưng của cả mạng chứ không chỉ của lớp cuối.'),
   fcOut(1024, 'classifier')
-  ] })
+  ] }),
+  chexnet // after DenseNet's own blocks, so links to those (#densenet.i) keep their numbers
 ] });
 })();
