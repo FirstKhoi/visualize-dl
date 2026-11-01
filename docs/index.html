@@ -59,6 +59,34 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 .seg button { border: 0; background: transparent; color: var(--muted); font: 600 13px/1 var(--f-ui); padding: 8px 12px; border-radius: 7px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--fg); color: var(--surface); }
+#models button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--fg); box-shadow: inset 0 0 0 1px var(--accent); }
+.pick { display: none; max-width: 100%; padding: 8px 10px; font: 600 13px var(--f-ui); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+#home-btn svg { display: block; }
+/* home page: over the whole app until a block is opened */
+.home { position: fixed; inset: 0; z-index: 5; overflow-y: auto; background: var(--scene); color: var(--fg); }
+.home-in { max-width: 1080px; margin: 0 auto; padding: 40px max(20px, env(safe-area-inset-right, 0px)) 56px max(20px, env(safe-area-inset-left, 0px)); }
+.home h1 { margin: 0 0 10px; font: 700 34px/1.15 var(--f-ui); letter-spacing: -0.02em; }
+.home-lede { max-width: 720px; margin: 0 0 16px; font-size: 16.5px; line-height: 1.55; }
+.home-links { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 0; font-size: 14px; }
+.home-links a { color: var(--accent); }
+.home-links .home-go { padding: 9px 14px; border-radius: 9px; background: var(--fg); color: var(--surface); font-weight: 600; text-decoration: none; }
+.home h2 { margin: 36px 0 12px; font: 700 12.5px var(--f-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.paths { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.path { padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.path h3 { margin: 0 0 4px; font: 700 16px var(--f-ui); }
+.path p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+.path ol { display: grid; gap: 5px; margin: 0; padding-left: 20px; font-size: 14px; }
+.path a { color: var(--accent); text-decoration: none; }
+.path a:hover { text-decoration: underline; }
+.path .soon { color: var(--muted); }
+.path .soon em { margin-left: 4px; padding: 0 5px; font-size: 11.5px; font-style: normal; border: 1px solid var(--line); border-radius: 5px; }
+.home-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 16px; }
+.hg h3 { margin: 0 0 6px; font: 600 14px var(--f-ui); }
+.hg div { display: flex; flex-wrap: wrap; gap: 6px; }
+.hg a { padding: 5px 10px; font-size: 13.5px; color: var(--fg); text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.hg a:hover { border-color: var(--accent); }
+.home-foot { max-width: 720px; margin: 36px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.home-foot a { color: var(--accent); }
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; padding: 4px 8px; font-size: 13px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); border-radius: 10px; }
 .crumbs button { border: 0; background: none; color: var(--accent); font: 500 13px/1.4 var(--f-ui); padding: 3px 5px; border-radius: 5px; cursor: pointer; }
 .crumbs button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -266,8 +294,12 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
   .panel { padding: 14px max(14px, env(safe-area-inset-right, 0px)) 24px 16px; }
   .top { top: 8px; gap: 6px; }
 }
-/* small screens: the top bar stays short — breadcrumb on one scrolling line, reverse toggle as an icon */
+/* small screens: the top bar stays short — one grouped menu instead of the tabs, breadcrumb on one scrolling line, reverse toggle as an icon */
 @media (max-width: 600px), (max-height: 500px) {
+  #groups, #models { display: none; }
+  .pick { display: block; }
+  .home h1 { font-size: 27px; }
+  .home-in { padding-top: 28px; }
   .crumbs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; white-space: nowrap; }
   .dir-label { display: none; }
 }
@@ -283,7 +315,10 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 <div class="app">
   <main class="stage" id="view" aria-label="Mô hình 3D. Kéo để xoay, cuộn để thu phóng, nhấp vào khối để mở.">
     <div class="top">
+      <button type="button" class="dir" id="home-btn" data-home aria-label="Trang chủ" title="Trang chủ"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M2 7.6 8 2.6l6 5M3.6 6.5v7h3.3v-4h2.2v4h3.3v-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></button>
+      <nav class="seg" id="groups" aria-label="Nhóm mạng"></nav>
       <div class="seg" id="models" aria-label="Chọn mạng"></div>
+      <select class="pick" id="model-pick" aria-label="Chọn mạng"></select>
       <div class="search" role="search">
         <input id="find-q" type="search" placeholder="Tìm khối…" autocomplete="off" spellcheck="false" aria-label="Tìm khối" aria-controls="find-list" aria-expanded="false">
         <div class="search-list" id="find-list" role="listbox" aria-label="Kết quả tìm khối" hidden></div>
@@ -299,6 +334,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
   </main>
   <aside class="panel" id="panel" aria-live="polite"></aside>
 </div>
+<section class="home" id="home" aria-labelledby="home-title" tabindex="-1" hidden></section>
 
 <script>
 window.MathJax = {
@@ -333,6 +369,7 @@ window.MathJax = {
 <script src="models/mlp.js"></script>
 <script src="models/weights/mnist-cnn.js"></script>
 <script src="models/cnn.js"></script>
+<script src="nav.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -363,7 +400,7 @@ const GLOSS = L({}, {
   'Không khí': 'Air', 'Phổi': 'Lung', 'Mỡ': 'Fat', 'Nước': 'Water', 'Mô mềm': 'Soft tissue', 'Xương': 'Bone'
 });
 const gloss = w => GLOSS[w] ?? w;
-if (EN) document.title = 'Anatomy of a neural network';
+if (EN) document.title = 'Neural Network Anatomy';
 
 // ---------- scene ----------
 const CAT = L({ io: 'Dữ liệu', shape: 'Đổi shape', embed: 'Embedding', attn: 'Attention', linear: 'Tuyến tính', conv: 'Tích chập', norm: 'Chuẩn hoá', act: 'Kích hoạt', add: 'Cộng residual', pool: 'Pooling', block: 'Khối' },
@@ -375,7 +412,7 @@ const GAP = 0.95, STUB = 0.9;
 const VIEW = new V3(0.12, 0.5, 1).normalize(); // near-frontal so rows read left → right; elevation keeps the 3D
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const view = document.getElementById('view'), panel = document.getElementById('panel');
+const view = document.getElementById('view'), panel = document.getElementById('panel'), home = document.getElementById('home');
 const crumbs = document.getElementById('crumbs'), legend = document.getElementById('legend'), topBar = document.querySelector('.top');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -608,7 +645,6 @@ async function enter(model, idx = []) {
   path = [MODELS[model]]; sel = hover = null;
   for (const i of idx) { const k = path.at(-1).children?.[i]; if (!k) break; path.push(k); }
   const leaf = path.length > 1 && !path.at(-1).children ? path.pop() : null;
-  document.querySelectorAll('[data-model]').forEach(b => b.setAttribute('aria-pressed', b.dataset.model === model));
   level = buildLevel(path.at(-1));
   scene.add(level.group);
   emerge(level, 0);
@@ -685,6 +721,7 @@ function select(it) {
   syncOwners();
   renderPanel();
   saveLoc();
+  syncNav();
 }
 
 function pick(it) {
@@ -1611,6 +1648,8 @@ function ui() {
   syncOwners();
   renderPanel();
   saveLoc();
+  syncNav();
+  labelsMoved();
 }
 
 function renderLegend() {
@@ -1630,6 +1669,9 @@ if (LANG === 'en') {
   const set = (sel, attrs) => Object.assign(document.querySelector(sel), attrs);
   set('#view', { ariaLabel: '3D model. Drag to rotate, scroll to zoom, click a block to open it.' });
   set('#models', { ariaLabel: 'Choose a network' });
+  set('#model-pick', { ariaLabel: 'Choose a network' });
+  set('#groups', { ariaLabel: 'Groups of networks' });
+  set('#home-btn', { ariaLabel: 'Home', title: 'Home' });
   set('#find-q', { ariaLabel: 'Find a block' });
   set('#find-list', { ariaLabel: 'Blocks found' });
   set('#dir', { ariaLabel: 'Backward', title: 'Run the particles backwards, like gradients in backpropagation' });
@@ -1647,10 +1689,81 @@ document.getElementById('lang').addEventListener('click', () => { // the hash su
 dirBtn.addEventListener('click', () => { backward = !backward; dirBtn.setAttribute('aria-pressed', backward); renderLegend(); });
 
 crumbs.addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (b) goTo(+b.dataset.d); });
-document.getElementById('models').innerHTML = Object.entries(MODELS).map(([k, m]) => `<button type="button" id="m-${k}" data-model="${k}" aria-pressed="false">${tr(m.label)}</button>`).join('');
-document.querySelectorAll('[data-model]').forEach(b => b.addEventListener('click', () => { if (!busy && path[0] !== MODELS[b.dataset.model]) enter(b.dataset.model); }));
+// ---------- the tab bar: groups of models (nav.js), the models of the group shown, and one grouped menu on phones ----------
+const groupsBar = document.getElementById('groups'), modelsBar = document.getElementById('models'), modelPick = document.getElementById('model-pick');
+const navNode = spec => { let nd = MODELS[spec.split('/')[0]]; for (const i of (navCode(spec) || '').split('.').slice(1)) nd = nd.children[+i]; return nd; };
+const navLabel = spec => spec.includes('/') ? tr(navNode(spec).tag || navNode(spec).name) : tr(MODELS[spec].label);
+let shownGroup = -1; // the group whose models the second row shows: the open model's, until another group is clicked
+groupsBar.innerHTML = GROUPS.map(([g], i) => `<button type="button" data-group="${i}" aria-pressed="false">${tr(g)}</button>`).join('');
+modelsBar.innerHTML = GROUPS.map(([, items], i) => items.map(s => s.includes('/')
+  ? `<button type="button" data-in="${i}" data-jump="${navCode(s)}" aria-pressed="false" hidden>${navLabel(s)}</button>`
+  : `<button type="button" id="m-${s}" data-in="${i}" data-model="${s}" aria-pressed="false" hidden>${navLabel(s)}</button>`).join('')).join('');
+modelPick.innerHTML = GROUPS.map(([g, items]) => `<optgroup label="${tr(g)}">${items.map(s => `<option value="${navCode(s)}">${navLabel(s)}</option>`).join('')}</optgroup>`).join('');
+// where we are: inside a shortcut's block (CheXNet within DenseNet-121) counts for the shortcut's group, else the open model
+function navHere() {
+  const code = locCode();
+  for (const [i, [, items]] of GROUPS.entries()) for (const s of items) {
+    const c = s.includes('/') && navCode(s);
+    if (c && (code === c || code.startsWith(c + '.'))) return { group: i, code: c };
+  }
+  return { group: GROUPS.findIndex(([, items]) => items.includes(modelKey())), code: modelKey() };
+}
+function syncNav(follow = true) {
+  const here = navHere();
+  if (follow) shownGroup = here.group;
+  groupsBar.querySelectorAll('[data-group]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.group === shownGroup)));
+  modelsBar.querySelectorAll('button').forEach(b => {
+    b.hidden = +b.dataset.in !== shownGroup;
+    b.setAttribute('aria-pressed', String((b.dataset.model ?? b.dataset.jump) === here.code));
+  });
+  modelPick.value = here.code;
+}
+groupsBar.addEventListener('click', e => {
+  const b = e.target.closest('[data-group]');
+  if (!b) return;
+  shownGroup = +b.dataset.group;
+  const items = GROUPS[shownGroup][1];
+  if (items.length === 1) jump(navCode(items[0])); // a group of one opens its model
+  else syncNav(false);
+});
+modelsBar.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || busy) return;
+  if (b.dataset.model && path[0] !== MODELS[b.dataset.model]) enter(b.dataset.model);
+  else if (b.dataset.jump) jump(b.dataset.jump);
+});
+modelPick.addEventListener('change', () => jump(modelPick.value));
+
+// ---------- home page: what the site is, learning paths through several models (nav.js), every model by group ----------
+function renderHome() {
+  const step = ([label, spec]) => spec ? `<li><a href="#${navCode(spec)}">${tr(label)}</a></li>` : `<li class="soon">${tr(label)}<em>${L('sắp có', 'coming')}</em></li>`;
+  const count = Object.keys(MODELS).length;
+  home.innerHTML = `<div class="home-in">
+    <h1 id="home-title">${L('Giải phẫu mạng nơ-ron', 'Neural Network Anatomy')}</h1>
+    <p class="home-lede">${L(`Mở từng khối của ${count} mạng nơ-ron trong 3D, từ cả mô hình xuống tới từng phép nhân ma trận. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Nhiều khối chạy số thật ngay trong trang: một CNN đã train trên MNIST đọc chữ số bạn vẽ, một mạng nhỏ học ngay trước mắt, một lát CT qua các cửa sổ HU.`,
+      `Open ${count} neural networks block by block in 3D, from the whole model down to a single matrix multiply. Every block has its shapes, formula, a worked example, the parameter count, PyTorch code and the paper it comes from. Many blocks compute for real in the page: a CNN trained on MNIST reads the digit you draw, a small network learns in front of you, a CT slice goes through HU windows.`)}</p>
+    <p class="home-links"><a class="home-go" href="#${navCode(PATHS[0].steps[0][1])}">${L('Bắt đầu với ảnh y khoa →', 'Start with medical imaging →')}</a><a href="#transformer">Transformer →</a><a href="?lang=${L('en', 'vi')}" lang="${L('en', 'vi')}">${L('English', 'Tiếng Việt')}</a><a href="${REPO}" target="_blank" rel="noopener">GitHub</a></p>
+    <h2>${L('Lộ trình học', 'Learning paths')}</h2>
+    <div class="paths">${PATHS.map(p => `<article class="path"><h3>${tr(p.title)}</h3><p>${tr(p.goal)}</p><ol>${p.steps.map(step).join('')}</ol></article>`).join('')}</div>
+    <h2>${L('Mọi mạng, theo nhóm', 'Every network, by group')}</h2>
+    <div class="home-groups">${GROUPS.map(([g, items]) => `<div class="hg"><h3>${tr(g)}</h3><div>${items.map(s => `<a href="#${navCode(s)}">${navLabel(s)}</a>`).join('')}</div></div>`).join('')}</div>
+    <p class="home-foot">${L(`Khối dày là khối có trọng số hoặc đổi shape, lát mỏng giữ nguyên shape. Mỗi khối có link riêng, ví dụ <a href="#transformer.2.0.2">#transformer.2.0.2</a>, để gửi cho người khác. Mã nguồn, cách các con số được kiểm chứng và cách project được làm: xem <a href="${REPO}" target="_blank" rel="noopener">GitHub</a>.`,
+      `A thick block has weights or changes the shape; a thin slab keeps the shape. Every block has its own link, such as <a href="#transformer.2.0.2">#transformer.2.0.2</a>, to send to someone. The source code, how the numbers are checked and how the project was built: see <a href="${REPO}" target="_blank" rel="noopener">GitHub</a>.`)}</p>
+  </div>`;
+}
+function showHome(on) {
+  home.hidden = !on;
+  document.querySelector('.app').inert = on; // keyboard and screen readers stay on the home page
+  if (on) { closeFind(); lab.running = false; home.focus({ preventScroll: true }); }
+}
+function goHome() {
+  try { history.pushState(null, '', location.pathname + location.search); } catch { location.hash = ''; return; } // the back button returns to the block
+  showHome(true);
+}
+document.querySelectorAll('[data-home]').forEach(b => b.addEventListener('click', goHome));
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 addEventListener('keydown', e => {
+  if (!home.hidden) return; // the home page is a plain page: the browser's own keys
   // block search: Cmd+F on Apple, Ctrl+F elsewhere (replaces the browser's find-in-page while the page has focus)
   if ((isMac ? e.metaKey : e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); openFind(); return; }
   if (e.target === findQ) return; // typing in the search field
@@ -1686,7 +1799,12 @@ function jump(code) {
   if (busy) return setTimeout(() => jump(code), 150); // a transition is running: go as soon as it ends
   enter(...p);
 }
-addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h !== locCode()) jump(h); }); // a link pasted into the same tab
+addEventListener('hashchange', () => { // a link pasted into the same tab, a link on the home page, or the back button
+  const h = location.hash.slice(1);
+  if (!parseLoc(h)) return showHome(true);
+  showHome(false);
+  if (h !== locCode()) jump(h);
+});
 
 function copyLink(b) {
   const url = (ARTIFACT_URL || location.href.split('#')[0]) + '#' + locCode();
@@ -1713,8 +1831,9 @@ const fold = s => s.normalize('NFD').replace(/\p{M}/gu, '').replace(/[Đđ]/g, '
 const SEARCH = groups(INDEX, e => e.key + '|' + e.nd.name + '|' + e.trail.at(-2)).map(g => ({ ...g,
   name: fold(g.nd.name + ' ' + (g.nd.tag || '') + (EN ? ' ' + tr(g.nd.name) : '')), concept: fold((CONCEPT_OF[g.nd.name] || []).map(c => c + (EN ? ' ' + tr(c) : '')).join(' ')), cat: fold(CAT[g.nd.cat]) })); // English names are searchable too
 const findQ = document.getElementById('find-q'), findList = document.getElementById('find-list'), findBox = findQ.parentElement;
-findQ.placeholder = `${L('Tìm khối…', 'Search…')} (${isMac ? '⌘F' : 'Ctrl F'})`;
-findQ.setAttribute('aria-keyshortcuts', isMac ? 'Meta+F' : 'Control+F');
+const touchOnly = matchMedia('(hover: none) and (pointer: coarse)').matches; // a phone or tablet without a keyboard: no shortcut to show
+findQ.placeholder = L('Tìm khối…', 'Search…') + (touchOnly ? '' : ` (${isMac ? '⌘F' : 'Ctrl F'})`);
+if (!touchOnly) findQ.setAttribute('aria-keyshortcuts', isMac ? 'Meta+F' : 'Control+F');
 let findRes = [], findAt = 0;
 function showList(on) {
   findList.hidden = !on;
@@ -1791,7 +1910,26 @@ new ResizeObserver(() => {
   renderer.setSize(w, h); css.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
   if (level) fit(level, 0);
+  labelsMoved();
 }).observe(view);
+
+// block labels that land on top of each other on screen (narrow screens, some camera angles) move apart: once the view
+// has settled, each label that touches one already placed slides down below it
+let labelsDirty = false, labelsAt = 0;
+function labelsMoved() { labelsDirty = true; labelsAt = performance.now(); }
+controls.addEventListener('change', labelsMoved);
+function spreadLabels() {
+  const tags = level.items.filter(it => it.el && !it.node.float).map(it => it.el.firstChild);
+  tags.forEach(t => { t.style.translate = ''; });
+  const boxes = tags.map(t => ({ t, r: t.getBoundingClientRect() })).filter(b => b.r.width > 0).sort((a, b) => a.r.top - b.r.top || a.r.left - b.r.left);
+  const placed = [], touch = (a, b, dy) => a.left < b.right + 2 && b.left < a.right + 2 && a.top + dy < b.bottom + 2 && b.top < a.bottom + dy + 2;
+  for (const { t, r } of boxes) {
+    let dy = 0;
+    for (let n = 0, hit; n < placed.length && (hit = placed.find(p => touch(r, p, dy))); n++) dy = hit.bottom + 2 - r.top;
+    if (dy) t.style.translate = `0 ${dy}px`;
+    placed.push({ left: r.left, right: r.right, top: r.top + dy, bottom: r.bottom + dy });
+  }
+}
 
 renderer.setAnimationLoop(now => {
   for (const tw of tweens) {
@@ -1809,14 +1947,18 @@ renderer.setAnimationLoop(now => {
     l.pulse.scale.setScalar(backward && (l.kind === 'skip' || l.kind === 'short') ? 1.8 : 1); // the shortcut carries the gradient whole
   }
   controls.update();
+  if (!home.hidden) return; // nothing of the 3D view shows under the home page
   renderer.render(scene, camera);
   css.render(scene, camera);
+  if (level && labelsDirty && !tweens.size && now - labelsAt > 150) { labelsDirty = false; spreadLabels(); }
 });
 
 readTheme();
 labReset();
 labDraw(); // before the first level is built, so the boundary block has a picture to copy
-enter(...(parseLoc(location.hash.slice(1)) || ['transformer'])); // a link like …#llm.2.1 opens that block
+renderHome();
+const first = parseLoc(location.hash.slice(1)); // a link like …#llm.2.1 opens that block; no link, the home page
+if (first) enter(...first); else showHome(true);
 </script>
 
 </html>

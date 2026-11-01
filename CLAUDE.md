@@ -1,6 +1,6 @@
 # visualize-dl: Giải phẫu mạng nơ-ron
 
-Trang web 3D (three.js) để khám phá các mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net, Stable Diffusion v1.5 và một lab train MLP ngay trong trang. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
+Trang web 3D (three.js) để khám phá các mạng nơ-ron theo từng khối: Transformer, LLaMA 3 8B, ViT-B/16, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121 (kèm CheXNet), EfficientNet-B0, LSTM, U-Net (kèm cửa sổ HU cho CT và các metric phân vùng), Stable Diffusion v1.5, một CNN nhỏ đã train trên MNIST và một lab train MLP ngay trong trang. Trang chủ có các lộ trình học; project đang chuyển hướng sang ảnh y khoa. Mỗi khối có shape, công thức, ví dụ số, số tham số, code PyTorch và paper gốc. Giao diện và nội dung bằng tiếng Việt; code, comment và commit bằng tiếng Anh.
 
 Demo: https://firstkhoi.github.io/visualize-dl/ (GitHub Pages phục vụ `docs/` trên `main`). Chủ repo là sinh viên đang xây portfolio cho hồ sơ thạc sĩ/tiến sĩ MIT. Phần train mô hình bằng PyTorch nên để chủ repo tự viết; Claude lo phần tích hợp vào trang.
 
@@ -24,7 +24,8 @@ Mở `index.html` trực tiếp bằng trình duyệt (`file://`) là chạy đ�
 |---|---|
 | `index.html` | Toàn bộ giao diện: CSS, cảnh 3D, panel, lab, các demo. Một `<script type="module">` lớn |
 | `blocks.js` | Khối dùng chung (attention, FFN, các lớp norm…), danh sách paper `PAPER` (dùng qua `ref(key, note)`), chỉ mục khái niệm `CONCEPTS`, `textId` (khoá của bản dịch), `fmt` (số trong `\( \)`) và `fmtText` (số trong văn xuôi) |
-| `live.js` | Mọi thứ thật sự tính toán: `rng`/`gauss` (có seed), `TOY` (attention đồ chơi), `TOYCONV`, `TRAIN` (MLP train trong trang), `GRAD` (thí nghiệm gradient), `SAMPLE` (lấy mẫu từ kế tiếp), `SWIN` (cửa sổ dịch đồ chơi), `DIFF` (khuếch tán 2D: lịch nhiễu của SD, bộ khử nhiễu chính xác cho hỗn hợp Gauss, DDIM, guidance), `CNN` (forward của CNN MNIST và tiền xử lý hình vẽ kiểu MNIST) |
+| `nav.js` | `GROUPS` (nhóm tab), `PATHS` (lộ trình học của trang chủ) và `navCode(spec)`: spec dạng `"unet/Conv 1×1 → 2 lớp"` (model rồi tên hoặc tag của từng khối con) thành link `unet.10`. Nạp sau các model |
+| `live.js` | Mọi thứ thật sự tính toán: `rng`/`gauss` (có seed), `TOY` (attention đồ chơi), `TOYCONV`, `TRAIN` (MLP train trong trang), `GRAD` (thí nghiệm gradient), `SAMPLE` (lấy mẫu từ kế tiếp), `SWIN` (cửa sổ dịch đồ chơi), `DIFF` (khuếch tán 2D: lịch nhiễu của SD, bộ khử nhiễu chính xác cho hỗn hợp Gauss, DDIM, guidance), `CNN` (forward của CNN MNIST và tiền xử lý hình vẽ kiểu MNIST), `CT` (lát CT giả lập theo HU, hàm cửa sổ, preset), `SEG` (Dice, IoU, cross-entropy, biên và HD95 theo cách MONAI, cảnh tổn thương đồ chơi) |
 | `models/*.js` | Mỗi file một kiến trúc, dựng cây khối bằng `n(name, cat, shape, info, more)` |
 | `models/weights/mnist-cnn.js` | Trọng số của CNN MNIST (`MNIST_CNN`), do `training/train_mnist_cnn.py` sinh ra. Không sửa tay; train lại thì chạy script rồi `npm test` |
 | `training/` | Script train bằng NumPy (nguồn của trọng số trong repo), bản PyTorch tương đương cho Colab, `results.json`. Dữ liệu MNIST tải về `training/data/` (gitignore) |
@@ -54,7 +55,8 @@ Các key hiện có:
 - sampling: `sample`, `sampleProbs`, `sampleDraws`;
 - Swin: `swin` (`node.swin` = `{ shifted }`, `{ rolled }` hoặc `{ mask }`);
 - khuếch tán: `diff` (`node.diff.at` = `start`, `now` hoặc `end`);
-- CNN thật trên MNIST: `cnn` (gốc), `cnnIn`, `cnnC1`, `cnnP1`, `cnnC2`, `cnnP2`, `cnnOut`.
+- CNN thật trên MNIST: `cnn` (gốc), `cnnIn`, `cnnC1`, `cnnP1`, `cnnC2`, `cnnP2`, `cnnOut`;
+- ảnh y khoa: `ct` (cửa sổ HU, khối cuối của U-Net), `seg` (metric phân vùng, khối đầu ra của U-Net).
 
 Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.mjs` tự mở một khối của mỗi key và kiểm tra phần trong panel; nếu class của section khác `live` thì cập nhật map `SECTION` trong file test đó.
 
@@ -64,6 +66,14 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - Chuỗi giao diện và demo viết cả hai thứ tiếng ngay trong `index.html` bằng `L(vi, en)`; từ đồ chơi của demo (câu attention, token lấy mẫu, tên bộ dữ liệu) qua `gloss(w)`. Hàm nào gọi `L()` thì không được đặt biến cục bộ tên `L` (các hàm về level như `paintLive(L)` có, nên đừng gọi `L()` trong đó).
 - Đã dịch: giao diện, Transformer, LLaMA 3, Huấn luyện, CNN (`DONE` trong `tests/i18n.test.mjs`). Sửa một văn bản tiếng Việt của các tab này thì id đổi: test báo mục cũ là "stale" và văn bản mới là "missing"; dịch lại rồi xoá mục cũ. Dịch thêm tab: `node scripts/i18n.mjs missing <tab>`, dán vào `i18n/en.js`, dịch, thêm tab vào `DONE`. Giá trị là chuỗi JS: dấu `\` của TeX viết `\\`.
 - `tests/e2e/lang.test.mjs` kiểm tra không còn chữ tiếng Việt trên các tab đã dịch (trừ link sang tab chưa dịch).
+
+### Điều hướng và trang chủ
+- Link không có hash (hoặc hash không trỏ tới model nào) mở trang chủ `#home`, phủ lên cả app; nút ⌂ (`data-home`) quay về bằng `pushState`, nên nút Back của trình duyệt trở lại khối cũ. Khi trang chủ hiện, cảnh 3D không vẽ và phím tắt không chạy.
+- Tab: hàng nhóm `#groups`, hàng model `#models` (nút `#m-<key>`, chỉ hiện model của nhóm đang chọn; mục có `/` trong `GROUPS` là lối tắt vào khối của model khác, như CheXNet trong DenseNet-121), và trên điện thoại (≤ 600px hoặc cao ≤ 500px) một `<select id="model-pick">` có optgroup. `syncNav()` chạy trong `ui()` và `select()`.
+- **Link cũ `#model.i.j` phải luôn mở đúng khối cũ:** thêm khối mới vào **cuối** `children` (như cửa sổ HU của U-Net, CheXNet của DenseNet), không chèn vào giữa. `tests/e2e/nav.test.mjs` giữ vài link cũ.
+- Nhãn khối đè nhau trên màn hình (điện thoại, vài góc nhìn) được `spreadLabels()` đẩy xuống dưới nhau khi camera đứng yên; test trong `nav.test.mjs` mở gốc mọi model ở 390×844 và 844×390.
+- Ô tìm kiếm chỉ ghi phím tắt (Ctrl F, ⌘F) khi máy có bàn phím (không phải `hover: none` và `pointer: coarse`).
+- Tên nhóm và nội dung lộ trình nằm trong phần dùng chung của bản dịch (`shared` trong `scripts/i18n.mjs`), nên phải có bản tiếng Anh.
 
 ### API của `TRAIN` (live.js)
 - `makeData(name, n = 200, { seed = 42, flip = 0 })`: `flip` là tỉ lệ nhãn bị lật (nhiễu nhãn); điểm không di chuyển. Tập test trong lab dùng `{ seed: 7 }`.
@@ -81,6 +91,7 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 - **Node và Chromium lệch nhau ở chữ số cuối** sau khoảng 100 bước train, và Adam khuếch đại sai lệch đó. Không assert số chính xác của một lần chạy dài trong trình duyệt; ví dụ trong bài thì ghi theo khoảng.
 - **Chromium headless trong môi trường cloud chỉ vẽ khoảng 5 khung hình/giây** (WebGL bằng phần mềm), nên lab chỉ chạy khoảng 25 bước/giây. Test e2e cần train lâu phải đặt timeout rộng. Trên máy thật, lab chạy 150–240 bước/giây.
 - **Test e2e với phần tử bị vẽ lại liên tục:** Playwright không `hover` được vì phần tử không bao giờ "đứng yên". Hãy cuộn tới khi chưa chạy, rồi dùng `page.mouse.move` tới toạ độ cố định.
+- **Trong `\text{…}` không viết lệnh TeX** (như `\_`): MathJax in nguyên văn. Viết `\text{fan_in}`. Test kiểm tra cả tiếng Việt lẫn tiếng Anh.
 - **Số trong văn xuôi dùng `fmtText`**, không dùng `fmt`: MathJax chỉ xử lý trong `\( \)`, nên `\,` ngoài đó hiện nguyên văn (test trong `tests/page.test.mjs`).
 - **Tránh trùng class CSS** với các demo khác (ví dụ `.tok`, `.live label` đã có sẵn).
 - **Bố cục panel:**
@@ -90,33 +101,35 @@ Thêm demo mới thì thêm một mục vào bảng này. `tests/e2e/live.test.m
 
 ## Git
 
-- Branch làm việc: `claude/charming-brown-ogcaqu`. Chỉ mở PR khi chủ repo yêu cầu; chủ repo tự merge.
+- Từ 2026-11-01, theo yêu cầu chủ repo, lộ trình ảnh y khoa (phần A–E) được push thẳng lên `main`: commit bằng `git -c user.name=FirstKhoi -c user.email=146471878+FirstKhoi@users.noreply.github.com commit`, `git fetch` rồi rebase lên `origin/main`, push `main` và giữ branch `claude/charming-brown-ogcaqu` trùng với `main`. Xong mỗi phần thì báo chủ repo rồi mới sang phần tiếp theo.
+- Branch làm việc: `claude/charming-brown-ogcaqu`. Ngoài lộ trình trên, chỉ mở PR khi chủ repo yêu cầu; chủ repo tự merge.
 - Nếu PR của branch đã merge: chạy `git fetch origin main && git checkout -B claude/charming-brown-ogcaqu origin/main`, rồi `git push --force-with-lease`.
 - Cuối commit message thêm dòng `Co-Authored-By` như các commit trước.
 
-## Trạng thái (cập nhật lần cuối 2026-10-31; sửa mục này khi tiến độ thay đổi)
+## Trạng thái (cập nhật lần cuối 2026-11-01; sửa mục này khi tiến độ thay đổi)
 
 **Đã xong**
-- PR #1: sửa 6 bug của lab; thêm test Node, CI, README song ngữ, LICENSE MIT.
-- PR #2: test e2e; sửa các lỗi nhỏ (▶ sau khi giải xong, điểm cuối đồ thị, `aria-live`, tooltip, tốc độ).
-- PR #3 (merge vào `main` ngày 2026-10-21): bảng `LIVE` và `rng` dùng chung; overfitting trong lab (tập test, nhiễu nhãn, weight decay, mini-batch); demo sampling của LLaMA (nhiệt độ T, top-p, bốc thăm); đã merge `main` (DenseNet-121, EfficientNet-B0); nút "Sao chép" không còn che code; panel không còn cuộn ngang trên điện thoại.
-- Commit thẳng lên `main` (theo yêu cầu chủ repo, 2026-10-19 đến 2026-10-21): DenseNet-121, EfficientNet-B0, hệ số Dice cho U-Net (đối chiếu với bài review CNN ảnh y khoa của Mienye và cộng sự, 2025); Swin-T với demo cửa sổ dịch; Stable Diffusion v1.5 (CLIP, U-Net, guidance, DDIM, VAE decoder) với demo khuếch tán 2D; đối chiếu Swin với slide và paper, thêm cách tra bảng bias và khối nổi Swin V2; ConvNeXt-T (lộ trình Bảng 10 từ ResNet-50, khối nổi ConvNeXt V2: GRN, FCMAE). Khối nổi (`float: true`) đặt nhãn phía trên hộp. Số tham số của mọi model mới được assert so với torchvision/diffusers. Đường tắt residual vòng lên trên heatmap thay vì cắt ngang.
-- Trên branch, chưa có PR (2026-10-31):
-  - **CNN (MNIST)**: train bằng NumPy (`training/train_mnist_cnn.py`, 5 258 tham số, 98.23%), forward bằng JS khớp logit tới 1e-9, tab vẽ chữ số với feature map thật. Bản PyTorch (`training/mnist_cnn_pytorch.py`) chưa từng được chạy vì môi trường không có torch: lần đầu chạy trên Colab thì kiểm tra số.
-  - **Cho thấy phần việc của chủ repo:** mục "How this was built" trong README, `training/README.md`, bản nháp bài viết `writing/lessons-draft.md` (chủ repo phải tự viết lại bằng lời của mình), form góp ý (`.github/ISSUE_TEMPLATE/feedback.yml`, link ở cuối mỗi khối), bộ nghiên cứu nhỏ `study/` (quy trình, bài kiểm tra 12 câu, bản nháp bài đăng).
-  - **Bản tiếng Anh** cho giao diện và 4 tab (xem mục "Bản tiếng Anh").
-  - Sửa số kiểu `128\,256` hiện nguyên văn trong văn xuôi (`fmtText`).
-  - `scripts/audit-layout.mjs` (kiểm tra bố cục; lần chạy 2026-10-31 với font thật: không lỗi nào ở cả 5 cỡ màn hình, 1 017 panel khác nhau, tiếng Việt và 4 tab tiếng Anh) và `scripts/record-demo.mjs`; `media/demo.gif` quay lại bằng bản tiếng Anh (28 s, 3.8 MB).
+- PR #1–#3 và các commit thẳng lên `main` tới 2026-10-21: lab (6 bug, overfitting, nhiễu nhãn, weight decay, mini-batch), test Node và e2e, CI, README song ngữ, bảng `LIVE`, demo sampling của LLaMA, DenseNet-121, EfficientNet-B0, Swin-T (demo cửa sổ dịch, Swin V2), Stable Diffusion v1.5 (demo khuếch tán 2D), ConvNeXt-T (Bảng 10, ConvNeXt V2), hệ số Dice cho U-Net. Số tham số của mọi model được assert.
+- 2026-10-31 (đưa lên `main` ngày 2026-11-01): CNN thật trên MNIST (NumPy, 5 258 tham số, 98.23%; bản PyTorch `training/mnist_cnn_pytorch.py` chưa từng chạy), mục "How this was built", bản nháp bài viết `writing/lessons-draft.md` (chủ repo phải viết lại), form góp ý, bộ nghiên cứu nhỏ `study/`, bản tiếng Anh cho giao diện và 4 tab, `fmtText`, `scripts/audit-layout.mjs`, `scripts/record-demo.mjs`, GIF mới.
+- **Phần A của lộ trình y tế (2026-11-01):**
+  - A1. Cửa sổ HU cho CT: khối cuối của U-Net, lát CT giả lập, preset phổi/mô mềm/xương.
+  - A2. Dice, IoU, cross-entropy, HD95 trên tổn thương nhỏ, bốn cạm bẫy theo Metrics Reloaded: khối đầu ra của U-Net.
+  - A3. CheXNet trên DenseNet-121 (khối nổi, 6 968 206 tham số). Theo bài báo: BCE có trọng số là của mô hình chỉ dò viêm phổi; bản 14 bệnh dùng tổng BCE không trọng số. Khối ghi cả hai, kèm `pos_weight` của PyTorch.
+  - A4. Trang chủ với 5 lộ trình học, tab theo nhóm, menu trên điện thoại, nhãn không đè nhau, bỏ "(⌘F)" trên màn hình cảm ứng, Roadmap mới trong README.
+  - Sửa thêm: `\text{fan\_in}` hiện nguyên dấu `\` trong tab Huấn luyện.
+  - **Chưa kiểm chứng được nguồn:** môi trường cloud chặn arxiv.org, doi.org, nature.com, radiopaedia.org, ncbi.nlm.nih.gov. Cần mở và đối chiếu: Radiopaedia "Hounsfield unit" và "Windowing (CT)" (giá trị HU, preset), Metrics Reloaded và bài cạm bẫy của Reinke và cộng sự (doi 10.1038/s41592-023-02151-z và -02150-0), CheXNet (arXiv 1711.05225: công thức w+, w−, phần mở rộng 14 bệnh, F1 0.435 và 0.387, 420 ảnh test) và ChestX-ray14 (arXiv 1705.02315: 112 120 ảnh, 30 805 bệnh nhân).
 
-**Bước tiếp theo, theo thứ tự**
-1. **Việc của chủ repo (Claude không làm thay được):** viết lại bài viết bằng lời của mình; sửa mô tả "About" của repo trên GitHub (nhắc tới bản tiếng Anh và CNN thật); đăng bài giới thiệu (`study/announcement.md`); chạy nghiên cứu nhỏ (`study/README.md`), hỏi trường về hội đồng đạo đức nếu định công bố; chạy thử bản PyTorch trên Colab.
-2. **GPT tí hon tiếng Việt** (train trên Truyện Kiều): attention và phân bố xác suất thật thay cho bản đồ chơi trong `TOY`/`SAMPLE`.
-3. **Dịch 9 tab còn lại** (`node scripts/i18n.mjs` cho biết độ phủ), bắt đầu bằng ViT (ngắn nhất).
-4. **Các demo còn lại của Giai đoạn 1:** trục chuẩn hoá (BN/LN/RMSNorm), chia ảnh thành patch cho ViT, receptive field cho ResNet, RoPE, BPE.
-5. **MedMNIST + Grad-CAM** (CNN trên ảnh y khoa, nối với bài review của Mienye và cộng sự): chưa làm vì môi trường này không tải được dữ liệu từ Zenodo.
-6. **MoE** (diffusion, CLIP, VAE đã có trong Stable Diffusion).
+**Bước tiếp theo, theo thứ tự (chờ chủ repo duyệt phần A)**
+1. **B. MedMNIST** thay MNIST: chủ repo train CNN tí hon trên Colab (PneumoniaMNIST hoặc BloodMNIST), báo accuracy, AUROC, calibration; export `models/weights/medmnist-cnn.js` cùng định dạng với `mnist-cnn.js` (state_dict, ảnh mẫu base64, logit đối chiếu). Claude: forward JS có test, feature map, Grad-CAM, reliability diagram; kiểm tra license từng tập con. Trước mắt chỉ cần chốt định dạng file với chủ repo.
+2. **C. Model y tế mới:** nnU-Net 3D full-res, MedSAM/SAM (dùng lại ViT), Swin UNETR (dùng lại Swin), Attention U-Net. Số tham số assert so với bản gốc.
+3. **D. Lab cho y tế:** lệch miền (bệnh viện A → B), mất cân bằng lớp (ROC, ngưỡng theo độ nhạy), FedAvg 3 bệnh viện.
+4. **E. Đóng gói học thuật:** tiếng Anh (ưu tiên trang chủ và lộ trình y tế; hiện dùng `i18n/en.js` theo `textId` thay cho `info → { vi, en }`), trang "Phương pháp kiểm chứng", `CITATION.cff` + DOI Zenodo, nghiên cứu nhỏ cho VISxAI.
+5. **Chưa làm lúc này:** VGG, MobileNet; LLM y tế; GPT tí hon trên Truyện Kiều (sau B và C).
+
+**Việc của chủ repo:** viết lại bài viết; sửa mô tả "About" của repo; mở các nguồn ở trên để kiểm tra (hoặc mở mạng cho môi trường cloud); chạy thử bản PyTorch của CNN MNIST.
 
 **Việc nhỏ còn tồn**
 - **Unit test chậm (~30 s)** vì có hai lần train thật 2000 bước trong `train.test.mjs`.
 - **Muốn bỏ `docs/` khỏi repo** thì phải đổi nguồn của Pages sang "GitHub Actions" trong cài đặt repo trước.
-- **Bản trên claude.ai** (`ARTIFACT_URL`) cần đăng thêm `i18n/en.js` và `models/weights/mnist-cnn.js` khi đăng lại; thiếu `en.js` thì nút EN chỉ dịch giao diện.
+- **Bản trên claude.ai** (`ARTIFACT_URL`) cần đăng thêm `nav.js`, `i18n/en.js` và `models/weights/mnist-cnn.js` khi đăng lại.
+- Nhãn trên đường nối (`.link-tag`, như "H → K, V") vẫn có thể bị nhãn khối che; `spreadLabels()` chỉ xử lý nhãn khối.

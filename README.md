@@ -1,7 +1,7 @@
 # Giải phẫu mạng nơ-ron · Neural Network Anatomy
 
-Explore twelve neural network architectures in 3D, block by block, from the whole model down to a single matrix multiply.
-Khám phá mười hai kiến trúc mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
+Explore thirteen neural networks in 3D, block by block, from the whole model down to a single matrix multiply.
+Khám phá mười ba mạng nơ-ron trong 3D, mở từng khối từ toàn bộ mô hình xuống tới từng phép nhân ma trận.
 
 ![Opening the Transformer down to its attention, drawing a digit for the trained CNN, then training the MLP lab (English version)](media/demo.gif)
 
@@ -32,10 +32,10 @@ Every block in every model can be opened and shows:
 | **Swin-T** (Liu et al., 2021) | Window attention, shifted windows with cyclic shift and mask, relative position bias, patch merging (a Transformer pyramid like a CNN); what Swin V2 changed to scale up (res-post-norm, scaled cosine attention, log-spaced position bias, SimMIM) | Toy 8×8 patch grid: pick a patch and see what it attends to in a regular and a shifted block, how far it reaches after both, and the mask of its rolled window |
 | **ResNet-50** | Stem, bottleneck blocks, BatchNorm, projection shortcuts | Editable 8×8 convolution; gradient through up to 100 layers with and without shortcuts |
 | **ConvNeXt-T** (Liu et al., 2022) | A pure CNN built from Swin's design choices: patchify stem, 1:1:3:1 stages, depthwise 7×7, inverted bottleneck, GELU, LayerNorm, layer scale, separate downsampling; the paper's ResNet-50 → ConvNeXt roadmap with the accuracy after each step; ConvNeXt V2 (GRN, FCMAE) | – |
-| **DenseNet-121** (Huang et al., 2017) | Dense blocks where every layer reads all earlier feature maps, growth rate, transition layers | Editable 8×8 convolution in each dense layer |
+| **DenseNet-121** (Huang et al., 2017) | Dense blocks where every layer reads all earlier feature maps, growth rate, transition layers; **CheXNet** (Rajpurkar et al., 2017): the same network for chest X-rays, 14 labels with one sigmoid each, the weighted BCE for rare diseases, splitting by patient | Editable 8×8 convolution in each dense layer |
 | **EfficientNet-B0** (Tan & Le, 2019) | MBConv (inverted residual), depthwise convolution, squeeze-and-excitation, stochastic depth, compound scaling | Editable 8×8 convolution as one depthwise channel; gradient through shortcuts |
 | **LSTM** (Zaremba et al., 2014) | Gates, cell state, unrolled time steps | Gradient through time: plain RNN vs. the LSTM cell path |
-| **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop, Dice score | Unpadded 8×8 convolution |
+| **U-Net** (Ronneberger et al., 2015) | Contracting and expanding paths, copy & crop; CT windowing in Hounsfield units; Dice, IoU, cross-entropy and HD95, and the pitfalls of each (Metrics Reloaded) | Unpadded 8×8 convolution; a synthetic CT slice through any window (lung, soft tissue and bone presets); a toy lesion scored by every metric while you move it, shrink it or add a false alarm |
 | **Stable Diffusion v1.5** (Rombach et al., 2022) | CLIP text encoder, the noise-predicting U-Net (ResBlocks with timestep embedding, GroupNorm, self- and cross-attention, GEGLU), classifier-free guidance, the DDIM step and its 50-step loop, the VAE decoder | Toy diffusion in 2D with the real noise schedule and DDIM: 300 points go from noise to the clusters of a prompt; change the prompt, the guidance and the number of steps, and scrub through the steps |
 | **Training lab** | A 2 → H → H → 2 MLP with hand-written backprop | Trains live: SGD / Momentum / Adam, ReLU / tanh, 4 datasets, full batch or mini-batches, label noise, weight decay, a held-out test set with train/test loss curves, decision boundary, advice read from the curves (including overfitting), real weight matrices painted on the 3D blocks |
 | **CNN (MNIST)** | A small CNN trained for real on MNIST (5 258 parameters, 98.2% on the test set): two 3×3 convs, max-pooling, a linear layer | Draw a digit or pick an MNIST sample: the input as the network sees it (MNIST's 20×20 box and centre of mass), every channel's real feature maps, the 10 probabilities |
@@ -44,6 +44,7 @@ The attention and convolution demos use small hand-picked inputs so every number
 
 ### Also
 
+- The home page has **learning paths** through several models: medical image segmentation, chest X-ray diagnosis, attention, CNNs, and how a network learns. The tabs come in groups (image CNNs, Transformers, image generation, sequences, medical imaging, training); on a phone they become one menu.
 - Search any block with **Ctrl F**. Press **Esc** to go up a level.
 - **Backward** makes the particles flow from the loss to the input, like gradients.
 - Every view has its own link, e.g. `#llm.2.1`.
@@ -67,6 +68,7 @@ The tests run every script of the page in Node. That covers the English version 
 ```
 index.html        page, 3D scene, panel, lab UI
 blocks.js         shared blocks (attention, FFN, norms…), paper list, concept index
+nav.js            the tab groups and the learning paths of the home page
 live.js           what really computes: toy attention, toy shifted windows, toy conv, gradient experiments, the trainable MLP, next-word sampling, toy diffusion
 models/*.js       one file per architecture (models/weights/: the trained CNN's weights)
 i18n/en.js        the English texts, keyed by a hash of the Vietnamese text; loaded only for ?lang=en
@@ -82,10 +84,14 @@ To translate another tab, run `node scripts/i18n.mjs missing vit`, paste the out
 
 ### Roadmap
 
-1. Demos for missing ideas: normalization axes, ViT patches, receptive fields, RoPE, BPE.
-2. Real trained models in the browser: ~~a small CNN on MNIST where you draw a digit~~ (done), a tiny Vietnamese GPT trained on *Truyện Kiều*.
-3. New architectures built from existing blocks: mixture of experts (~~diffusion, CLIP, VAE~~: done, in Stable Diffusion).
-4. English: ~~the interface, Transformer, LLaMA 3, the training lab, the CNN~~ (done); the other nine models.
+The project is turning towards medical imaging.
+
+1. **Medical imaging from what is already here:** ~~CT windowing, Dice vs cross-entropy vs HD95 on a small lesion, CheXNet on DenseNet-121, a home page with learning paths, grouped tabs~~ (done).
+2. **A CNN on MedMNIST** instead of MNIST (PneumoniaMNIST or BloodMNIST), trained in PyTorch by the author; the page will run it with real feature maps, Grad-CAM for the chosen image, and a reliability diagram.
+3. **Medical models that each teach something new:** nnU-Net (3D convolution, uneven voxel spacing, sliding-window inference, deep supervision), MedSAM (prompts, two-way attention), Swin UNETR, Attention U-Net.
+4. **The lab, for medical problems:** domain shift between hospitals, class imbalance with an ROC curve and a threshold chosen by sensitivity, federated learning (FedAvg).
+5. **Academic packaging:** English for every tab (~~the interface, Transformer, LLaMA 3, the training lab, the CNN~~ done), a page on how every number is verified, `CITATION.cff` with a Zenodo DOI, a small pre/post study aimed at VISxAI.
+6. Later: demos for normalization axes, ViT patches, receptive fields, RoPE and BPE; a tiny Vietnamese GPT trained on *Truyện Kiều*; mixture of experts.
 
 ### How this was built
 
@@ -102,6 +108,8 @@ Mỗi khối trong mỗi mạng đều mở được và cho thấy:
 - **code PyTorch** và **paper gốc**, kèm mục trong paper;
 - những mạng khác có cùng ý tưởng ("Cũng xuất hiện ở").
 
+Trang chủ có **lộ trình học** đi qua nhiều mạng: phân vùng ảnh y khoa, chẩn đoán X-quang ngực, attention, CNN, và cách một mạng học. Các tab được gom theo nhóm (CNN ảnh, Transformer, Sinh ảnh, Chuỗi, Y tế, Huấn luyện); trên điện thoại chúng thành một menu.
+
 Có bản tiếng Anh: bấm **EN** hoặc thêm `?lang=en`. Giao diện và các tab Transformer, LLaMA 3, Huấn luyện, CNN đã được dịch; các tab còn lại hiện nội dung tiếng Việt, kèm ghi chú là chưa dịch.
 
 ### Các mạng
@@ -114,10 +122,10 @@ Có bản tiếng Anh: bấm **EN** hoặc thêm `?lang=en`. Giao diện và cá
 | **Swin-T** (2021) | Attention trong cửa sổ, cửa sổ dịch bằng cuộn vòng và mặt nạ, bias vị trí tương đối, patch merging (Transformer dựng kim tự tháp như CNN); Swin V2 đổi gì để phóng to (res-post-norm, cosine attention có nhiệt độ, bias vị trí theo toạ độ log, SimMIM) | Lưới đồ chơi 8×8 patch: chọn một patch để xem nó chú ý tới đâu ở khối thường và khối dịch, sau hai khối lan tới đâu, và mặt nạ của cửa sổ chứa nó sau khi cuộn |
 | **ResNet-50** | Stem, khối bottleneck, BatchNorm, đường tắt chiếu | Tích chập 8×8 sửa được; gradient qua tối đa 100 lớp, có và không có đường tắt |
 | **ConvNeXt-T** (2022) | CNN thuần dựng từ các lựa chọn thiết kế của Swin: stem patchify, tỉ lệ tầng 1:1:3:1, depthwise 7×7, cổ chai ngược, GELU, LayerNorm, layer scale, lớp giảm độ phân giải riêng; lộ trình ResNet-50 → ConvNeXt của bài báo với độ chính xác sau từng bước; ConvNeXt V2 (GRN, FCMAE) | – |
-| **DenseNet-121** (2017) | Dense block: mỗi lớp đọc mọi bản đồ đặc trưng trước nó, growth rate, transition layer | Tích chập 8×8 sửa được trong từng lớp dense |
+| **DenseNet-121** (2017) | Dense block: mỗi lớp đọc mọi bản đồ đặc trưng trước nó, growth rate, transition layer; **CheXNet** (2017): chính mạng này cho X-quang ngực, 14 nhãn với sigmoid riêng, BCE có trọng số cho bệnh hiếm, chia tập theo bệnh nhân | Tích chập 8×8 sửa được trong từng lớp dense |
 | **EfficientNet-B0** (2019) | MBConv (cổ chai ngược), conv depthwise, squeeze-and-excitation, stochastic depth, compound scaling | Tích chập 8×8 sửa được như một kênh depthwise; gradient qua đường tắt |
 | **LSTM** (2014) | Các cổng, bộ nhớ c, trải theo thời gian | Gradient đi ngược theo thời gian: RNN thường so với đường c của LSTM |
-| **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối, hệ số Dice | Tích chập 8×8 không đệm |
+| **U-Net** (2015) | Nhánh co và nhánh giãn, cắt và nối; cửa sổ HU cho ảnh CT; Dice, IoU, cross-entropy, HD95 và cạm bẫy của từng metric (Metrics Reloaded) | Tích chập 8×8 không đệm; lát CT giả lập qua cửa sổ bất kỳ (preset phổi, mô mềm, xương); tổn thương đồ chơi được chấm bằng mọi metric khi bạn dịch, thu nhỏ hay thêm đốm báo nhầm |
 | **Stable Diffusion v1.5** (2022) | CLIP text encoder, U-Net đoán nhiễu (ResBlock có nhúng bước t, GroupNorm, self-attention và cross-attention, GEGLU), classifier-free guidance, bước DDIM và vòng lặp 50 bước, VAE decoder | Khuếch tán đồ chơi trong 2D với đúng lịch nhiễu và DDIM: 300 điểm đi từ nhiễu về các cụm của câu mô tả; đổi câu mô tả, guidance, số bước, và kéo qua từng bước |
 | **Huấn luyện** | MLP 2 → H → H → 2, backprop viết tay | Train ngay trong trang: SGD / Momentum / Adam, ReLU / tanh, 4 bộ dữ liệu, full batch hoặc mini-batch, nhiễu nhãn, weight decay, tập test riêng với đường loss train/test, ranh giới quyết định, lời khuyên đọc từ đường loss (kể cả overfitting), ma trận trọng số thật tô lên khối 3D |
 | **CNN (MNIST)** | CNN nhỏ train thật trên MNIST (5 258 tham số, đúng 98,2% trên tập test): hai conv 3×3, max-pool, một lớp Linear | Vẽ một chữ số hoặc chọn ảnh MNIST mẫu: ảnh 28×28 mà mạng nhìn thấy (thu vào 20×20, căn theo trọng tâm như MNIST), bản đồ đặc trưng thật của từng kênh, 10 xác suất |
@@ -135,11 +143,22 @@ npm run test:e2e    # chạy chính trang web trong Chromium headless, không c�
 ./build-pages.sh    # build lại docs/ (bản cho GitHub Pages); commit docs/ cùng thay đổi
 ```
 
-Test chạy mọi script của trang trong Node. Chúng kiểm tra bản tiếng Anh (mọi nội dung của tab đã dịch đều có bản dịch, không bản dịch nào bị cũ, và test trình duyệt không thấy chữ tiếng Việt nào sót lại trên các tab đó), các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net; U-Net, CLIP text encoder và VAE decoder của Stable Diffusion;, và MLP của phòng thí nghiệm), CNN so với logit lúc train, cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
+Test chạy mọi script của trang trong Node. Chúng kiểm tra bản tiếng Anh (mọi nội dung của tab đã dịch đều có bản dịch, không bản dịch nào bị cũ, và test trình duyệt không thấy chữ tiếng Việt nào sót lại trên các tab đó), các self-check có sẵn trong script (attention đồ chơi so với giá trị tính bằng Python, cửa sổ dịch đồ chơi, tích chập đồ chơi, backprop so với sai phân hữu hạn, tổng số tham số của LLaMA 3, ViT, Swin-T, ResNet-50, ConvNeXt-T, DenseNet-121, EfficientNet-B0, LSTM, U-Net; U-Net, CLIP text encoder và VAE decoder của Stable Diffusion; MLP của phòng thí nghiệm), CNN so với logit lúc train, cùng các bộ tối ưu, nhịp train và lời khuyên của phòng thí nghiệm. Test trình duyệt mở trang với three.js lấy từ `node_modules` và kiểm tra những gì người dùng thấy: ranh giới quyết định trên khối 3D, việc train dừng khi rời phòng thí nghiệm, đổi theme, đồ thị loss và tooltip, và trình đọc màn hình không bị đọc dồn dập khi đang train. CI chạy cả hai mỗi lần push và báo lỗi nếu `docs/` chưa được build lại.
 
 Muốn thêm một mạng: tạo `models/<tên>.js` (xem `models/vit.js` là file ngắn), rồi thêm thẻ `<script>` vào `index.html`. Test sẽ tự nhận file mới.
 
 Muốn dịch thêm một tab: chạy `node scripts/i18n.mjs missing vit`, dán kết quả vào `i18n/en.js` rồi thay từng giá trị tiếng Việt bằng tiếng Anh, sau đó thêm tab vào `DONE` trong `tests/i18n.test.mjs`. `node scripts/i18n.mjs` cho biết mỗi tab đã dịch được bao nhiêu.
+
+### Lộ trình phát triển
+
+Project đang chuyển hướng sang ảnh y khoa.
+
+1. **Ảnh y khoa từ những gì đã có:** ~~cửa sổ HU cho CT, Dice so với cross-entropy và HD95 trên tổn thương nhỏ, CheXNet trên DenseNet-121, trang chủ có lộ trình học, tab theo nhóm~~ (đã xong).
+2. **CNN trên MedMNIST** thay cho MNIST (PneumoniaMNIST hoặc BloodMNIST), tác giả tự train bằng PyTorch; trang sẽ chạy nó với feature map thật, Grad-CAM cho ảnh đang chọn và reliability diagram.
+3. **Model y tế, mỗi model dạy một cơ chế mới:** nnU-Net (tích chập 3D, spacing không đều, suy luận cửa sổ trượt, deep supervision), MedSAM (prompt, attention hai chiều), Swin UNETR, Attention U-Net.
+4. **Phòng thí nghiệm cho bài toán y tế:** lệch miền giữa các bệnh viện, mất cân bằng lớp với đường ROC và ngưỡng chọn theo độ nhạy, federated learning (FedAvg).
+5. **Đóng gói học thuật:** tiếng Anh cho mọi tab (~~giao diện, Transformer, LLaMA 3, Huấn luyện, CNN~~ đã xong), trang "phương pháp kiểm chứng", `CITATION.cff` và DOI qua Zenodo, nghiên cứu nhỏ trước và sau khi học, hướng tới workshop VISxAI.
+6. Sau đó: demo trục chuẩn hoá, chia ảnh thành patch cho ViT, receptive field, RoPE, BPE; GPT tí hon tiếng Việt train trên *Truyện Kiều*; mixture of experts.
 
 ### Cách project được làm
 

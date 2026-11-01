@@ -65,6 +65,46 @@ const EN_TEXT = {
   "87tg2h": "Reinke et al. (2024), Understanding metric-related pitfalls in image analysis validation", // Reinke và cộng sự (2024), Understanding metric-related pitfalls in im…
   "1c2msl9": "Rajpurkar et al. (2017), CheXNet: Radiologist-Level Pneumonia Detection on Chest X-Rays with Deep Learning", // Rajpurkar và cộng sự (2017), CheXNet: Radiologist-Level Pneumonia Det…
   "1lw5bi3": "Wang et al. (2017), ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases", // Wang và cộng sự (2017), ChestX-ray8: Hospital-scale Chest X-ray Datab…
+  // tab groups and learning paths (nav.js)
+  "1lxteqd": "Image CNNs", // CNN ảnh
+  "1uqiqz0": "Image generation", // Sinh ảnh
+  "l1bwb5": "Sequences", // Chuỗi
+  "1sabsg5": "Medical imaging", // Y tế
+  "b327q4": "Medical image segmentation", // Phân vùng ảnh y khoa
+  "1cux256": "From a CT slice to a segmentation mask, and how to score that mask fairly.", // Từ một lát CT tới mặt nạ phân vùng, và cách chấm điểm mặt nạ đó cho đ…
+  "13uzdrr": "HU windows for CT images", // Cửa sổ HU cho ảnh CT
+  "165xvp3": "U-Net: the way down and the way up", // U-Net: nhánh xuống và nhánh lên
+  "nq1rat": "Crop and concatenate: U-Net's shortcuts", // Cắt và nối: đường tắt của U-Net
+  "ecsarq": "Dice, cross-entropy and HD95", // Dice, cross-entropy và HD95
+  "18lni3u": "Chest X-ray diagnosis", // Chẩn đoán X-quang ngực
+  "10si71n": "Reusing a CNN trained on ImageNet to detect 14 diseases on chest films.", // Dùng lại một CNN train trên ImageNet để dò 14 bệnh trên phim ngực.
+  "oe21io": "Dense block: concatenate instead of add", // Dense block: nối thay vì cộng
+  "1dcbg6g": "CheXNet: 14 labels instead of 1000 classes", // CheXNet: 14 nhãn thay cho 1000 lớp
+  "1gzb7rc": "Sigmoid for images with several diseases", // Sigmoid cho ảnh nhiều bệnh
+  "1m0ctt9": "Weighted BCE for rare diseases", // BCE có trọng số cho bệnh hiếm
+  "umcqoz": "A CNN on MedMNIST", // CNN trên MedMNIST
+  "i9mcsi": "Attention from the numbers up", // Attention từ con số
+  "vsful6": "Self-attention with live numbers, then what today's LLMs changed.", // Self-attention với số chạy thật, rồi những gì các LLM hiện nay đổi đi.
+  "yktmwi": "Self-attention, live numbers", // Self-attention, số chạy thật
+  "bvqlvd": "The causal mask", // Mặt nạ nhân quả
+  "s71rht": "Residual shortcuts and the gradient", // Đường tắt residual và gradient
+  "rwl1wx": "LLaMA 3: RoPE, GQA and the KV cache", // LLaMA 3: RoPE, GQA và KV cache
+  "8loryp": "Temperature and top-p when generating text", // Nhiệt độ và top-p khi sinh chữ
+  "1f9vcht": "ViT: an image as a sequence of patches", // ViT: ảnh thành chuỗi ô
+  "1n9ucmd": "Swin: attention in shifted windows", // Swin: attention trong cửa sổ dịch
+  "19mazjd": "CNNs from the numbers up", // CNN từ con số
+  "1fhgjjm": "From one 3×3 filter on handwritten digits to ImageNet networks.", // Từ một bộ lọc 3×3 trên chữ số viết tay tới các mạng ImageNet.
+  "17y49w3": "Draw a digit for a CNN", // Vẽ một chữ số cho CNN
+  "1glko6o": "3×3 convolution and feature maps", // Tích chập 3×3 và feature map
+  "bxqy0d": "ResNet: bottlenecks and shortcuts", // ResNet: bottleneck và đường tắt
+  "1lm00e9": "ConvNeXt: a CNN that learned from Transformers", // ConvNeXt: CNN học từ Transformer
+  "aiydrq": "How a network learns", // Một mạng học như thế nào
+  "123u7i8": "Train a small network right in the page, watch it overfit, and watch the gradient travel through deep networks.", // Train một mạng nhỏ ngay trong trang, xem nó overfit, và xem gradient …
+  "2lx9oi": "The training lab", // Phòng thí nghiệm huấn luyện
+  "rztzd0": "Backprop through one Linear layer", // Backprop qua một lớp Linear
+  "1g3jkm1": "Softmax and cross-entropy", // Softmax và cross-entropy
+  "1j3d4ww": "The gradient through 100 layers, with and without shortcuts", // Gradient qua 100 lớp, có và không có đường tắt
+  "shbu6b": "The gradient through time: RNN and LSTM", // Gradient qua thời gian: RNN và LSTM
   // ---- CNN (MNIST) ----
   "14y0dpc": "Small CNN on MNIST", // CNN nhỏ trên MNIST
   "p91tv1": "digit", // chữ số

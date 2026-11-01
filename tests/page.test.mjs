@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { run, pageScripts, loadPage } from './load.mjs';
 
-test('the local scripts of index.html are found: shared code first, then the models', () => {
+test('the local scripts of index.html are found: shared code first, then the models, then the navigation over them', () => {
   const scripts = pageScripts();
   assert.deepEqual(scripts.slice(0, 2), ['blocks.js', 'live.js']);
-  assert.ok(scripts.slice(2).length > 0 && scripts.slice(2).every(s => s.startsWith('models/')), scripts.join(', '));
+  assert.equal(scripts.at(-1), 'nav.js');
+  assert.ok(scripts.slice(2, -1).length > 0 && scripts.slice(2, -1).every(s => s.startsWith('models/')), scripts.join(', '));
 });
 
 test('a failing console.assert inside a script fails the load', () => {

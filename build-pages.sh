@@ -7,7 +7,7 @@ set -e
 cd "$(dirname "$0")"
 rm -rf docs
 mkdir -p docs/models
-cp blocks.js live.js docs/
+cp blocks.js live.js nav.js docs/
 cp models/*.js docs/models/
 mkdir -p docs/models/weights
 cp models/weights/*.js docs/models/weights/
