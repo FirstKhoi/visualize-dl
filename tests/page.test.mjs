@@ -40,3 +40,13 @@ test('TeX commands only appear inside \\( \\) or \\[ \\]: MathJax leaves the pro
   })(m, key);
   assert.deepEqual(bad, []);
 });
+
+test('no TeX command inside \\text{…}: MathJax prints it as typed, so "\\text{fan\\_in}" would show a backslash', () => {
+  const MODELS = loadPage()('MODELS'), bad = [], inText = /\\text(?:tt|rm|bf|it)?\{[^{}]*\\[^{}]*\}/;
+  for (const [key, m] of Object.entries(MODELS)) (function walk(nd, code) {
+    for (const s of [...['what', 'why', 'example', 'params'].map(f => nd.info?.[f]), ...(nd.info?.formula || [])])
+      if (typeof s === 'string' && inText.test(s)) bad.push(`${code}: ${s.match(inText)[0]}`);
+    (nd.children || []).forEach((k, j) => walk(k, `${code}.${j}`));
+  })(m, key);
+  assert.deepEqual(bad, []);
+});

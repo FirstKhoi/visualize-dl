@@ -56,7 +56,7 @@ y = torch.tensor(labels)   # (200,), 0 hoặc 1`
     }, { tag: 'Điểm (x, y)', size: [0.5, 1.4, 0.5] }),
     linear('Linear 2 → H', 'W₁', 1, 'n×2 → n×H',
       'Mỗi neuron ẩn tính một tổ hợp tuyến tính của x và y. Về hình học, mỗi neuron là một đường thẳng chia mặt phẳng làm hai.',
-      R`Heatmap trên khối là ma trận \(W_1\) thật (2 hàng × H cột), đổi màu khi mạng học: hồng là dương, xanh là âm. Khởi tạo He: \(W \sim \mathcal{N}(0, 2/\text{fan\_in})\), để độ lớn tín hiệu không teo đi hay phình ra qua các lớp ReLU.`),
+      R`Heatmap trên khối là ma trận \(W_1\) thật (2 hàng × H cột), đổi màu khi mạng học: hồng là dương, xanh là âm. Khởi tạo He: \(W \sim \mathcal{N}(0, 2/\text{fan_in})\), để độ lớn tín hiệu không teo đi hay phình ra qua các lớp ReLU.`),
     activation(1),
     linear('Linear H → H', 'W₂', 2, 'n×H → n×H',
       'Lớp ẩn thứ hai ghép các đường thẳng của lớp đầu thành hình phức tạp hơn.',

@@ -24,3 +24,8 @@ test('two different texts never share an id', () => {
 test('every entry is English: none still holds the Vietnamese it was prefilled with', () => {
   assert.deepEqual(Object.entries(EN).filter(([, en]) => VI.test(en)).map(([id]) => id), []);
 });
+
+test('no TeX command inside \\text{…} in the English either (MathJax would print it as typed)', () => {
+  const inText = /\\text(?:tt|rm|bf|it)?\{[^{}]*\\[^{}]*\}/;
+  assert.deepEqual(Object.entries(EN).filter(([, en]) => inText.test(en)).map(([id, en]) => `${id}: ${en.match(inText)[0]}`), []);
+});
