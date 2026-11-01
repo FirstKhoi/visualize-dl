@@ -230,6 +230,16 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .ct-table th { color: var(--muted); font-size: 12px; }
 .ct-table td:first-child, .ct-table th:first-child { text-align: left; }
 .ct-table i { display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; border: 1px solid var(--line); border-radius: 3px; }
+.seg-io { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin: 10px 0; }
+#seg-view { width: min(100%, 220px); height: auto; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid var(--line); border-radius: 8px; }
+.seg-key { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.seg-key i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border-radius: 3px; }
+.seg-wrap { overflow-x: auto; }
+.seg-table { border-collapse: collapse; font-size: 13px; }
+.seg-table th, .seg-table td { padding: 3px 12px 3px 0; text-align: left; font-weight: 400; vertical-align: top; }
+.seg-table td[data-m] { font: 600 13px var(--f-mono); text-align: right; white-space: nowrap; }
+.seg-table th { color: var(--muted); font-size: 12px; }
+.seg-traps { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; }
 .cnn-io { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin: 10px 0; }
 #cnn-pad { width: min(100%, 200px); height: auto; aspect-ratio: 1; touch-action: none; cursor: crosshair; border: 1px solid var(--line); border-radius: 8px; }
 #cnn-input { width: 84px; height: 84px; image-rendering: pixelated; border: 1px solid var(--line); border-radius: 4px; }
@@ -713,7 +723,8 @@ const LIVE = {
   // the trained CNN: the tab's root (panel only), the input, the four stages' feature maps and the 10 probabilities
   ...Object.fromEntries([['cnn'], ['cnnIn', 'in'], ['cnnC1', 'c1'], ['cnnP1', 'p1'], ['cnnC2', 'c2'], ['cnnP2', 'p2'], ['cnnOut', 'out']].map(([k, stage]) =>
     [k, { demo: 'cnn', ...(['c1', 'c2', 'out'].includes(stage) && { image: () => cnnImage(stage) }), section: () => cnnSection(stage), mount: cnnRefresh }])), // the thin input and pool blocks: panel only, their sprites would cover the convs'
-  ct: { demo: 'ct', image: () => ctImage(), section: () => ctSection(), mount: ctRefresh } // CT windowing on a synthetic slice
+  ct: { demo: 'ct', image: () => ctImage(), section: () => ctSection(), mount: ctRefresh }, // CT windowing on a synthetic slice
+  seg: { demo: 'seg', image: () => segImage(), section: () => segSection(), mount: segRefresh } // segmentation metrics on a toy lesion
 };
 const showsDemo = (L, demo) => L.items.some(it => it.live && LIVE[it.node.live].demo === demo);
 const fmtV = v => v === -Infinity ? '−∞' : Number.isInteger(v) ? String(v) : v.toFixed(2);
@@ -1053,6 +1064,7 @@ panel.addEventListener('input', e => {
   if (t.dataset.smp) return smpSlider(t);
   if (t.dataset.dif) return difSlider(t);
   if (t.dataset.ct) return ctSlider(t);
+  if (t.dataset.seg) { seg[t.dataset.seg] = +t.value; return segRefresh(); }
   if (!t.dataset.exp) return;
   exp[t.dataset.exp][t.dataset.key] = +t.value;
   panel.querySelector(`#o-${t.dataset.exp}-${t.dataset.key}`).textContent = t.value;
@@ -1437,6 +1449,71 @@ panel.addEventListener('click', e => {
   ctRefresh();
 });
 
+// ---------- segmentation metrics (SEG in live.js): a toy lesion, a toy prediction, and how CE, Dice and HD95 score it ----------
+const seg = { r: 4, shift: 0, blob: false, none: false };
+const segCanvas = document.createElement('canvas');
+const segNow = () => SEG.scene(seg);
+function segImage() { // hits in chart-a, misses in chart-b, false alarms in the activation orange, on the surface
+  const { N, G, P } = segNow(), c = segCanvas, g = c.getContext('2d'), img = g.createImageData(N, N);
+  const col = [theme.surface, theme.chartA, theme.chartB, theme.cat('act')].map(t => [t.r, t.g, t.b].map(v => Math.round(v * 255)));
+  for (let i = 0; i < N * N; i++) img.data.set([...col[P[i] && G[i] ? 1 : G[i] ? 2 : P[i] ? 3 : 0], 255], 4 * i);
+  c.width = c.height = N;
+  g.putImageData(img, 0, 0);
+  return c;
+}
+const segSlide = (key, label, min, max) => `<label class="sl" for="seg-${key}"><span>${label}<output id="o-seg-${key}">${seg[key]} px</output></span><input type="range" id="seg-${key}" data-seg="${key}" min="${min}" max="${max}" step="1" value="${seg[key]}"></label>`;
+const segFmt = { acc: v => (100 * v).toFixed(1) + '%', ce: v => v.toFixed(3), dice: v => v.toFixed(2), iou: v => v.toFixed(2), hd95: v => Number.isNaN(v) ? L('không xác định', 'undefined') : v.toFixed(1) + ' px' };
+const segSection = () => {
+  const a = SEG.scene({ r: 4, shift: 2 }).m, b = SEG.scene({ r: 16, shift: 2 }).m, c = SEG.scene({ r: 4, blob: true }).m, miss = SEG.scene({ r: 4, none: true }).m;
+  return `<section class="live seg"><h3>${L('Số chạy thật', 'Live numbers')}</h3>
+  <p class="kids-hint">${L('Ảnh 64×64 có một tổn thương tròn. Mạng giả lập rất tự tin: xác suất 0.9 ở chỗ nó đánh dấu, 0.01 ở mọi chỗ khác, cắt ngưỡng 0.5. Kéo thanh hoặc chọn một tình huống: mọi metric tính lại ngay.',
+    'A 64×64 image with one round lesion. The simulated network is very confident: probability 0.9 where it marks, 0.01 everywhere else, threshold 0.5. Drag a slider or pick a case: every metric is recomputed at once.')}</p>
+  <div class="seg-io"><canvas id="seg-view" width="64" height="64" role="img" aria-label="${L('Nhãn thật và dự đoán của mạng', 'The reference and the prediction')}"></canvas>
+    <div class="seg-key"><span><i style="background: var(--chart-a)"></i>${L('Đúng (dự đoán ∩ nhãn)', 'Hit (prediction ∩ reference)')}</span><span><i style="background: var(--chart-b)"></i>${L('Bỏ sót', 'Missed')}</span><span><i style="background: var(--c-act)"></i>${L('Báo nhầm', 'False alarm')}</span></div></div>
+  <div class="live-ctl">
+    <div class="vocab"><span>${L('Tình huống:', 'Cases:')}</span><button type="button" data-segdo="ok">${L('Đúng chỗ', 'Right on')}</button><button type="button" data-segdo="none" aria-pressed="${seg.none}">${L('Đoán toàn nền', 'All background')}</button><button type="button" data-segdo="blob" aria-pressed="${seg.blob}">${L('Thêm đốm lạ', 'A stray spot')}</button></div>
+    ${segSlide('r', L('Bán kính tổn thương', 'Lesion radius'), 2, 20)}
+    ${segSlide('shift', L('Dự đoán lệch sang phải', 'Prediction moved right by'), 0, 10)}
+  </div>
+  <div class="seg-wrap"><table class="seg-table">
+    <tr><th>Metric</th><th></th><th>${L('Đọc thế nào', 'How to read it')}</th></tr>
+    <tr><td>${L('Đúng từng pixel', 'Pixel accuracy')}</td><td data-m="acc"></td><td>${L('nền chiếm gần hết ảnh, nên luôn cao', 'the background fills most of the image, so it is always high')}</td></tr>
+    <tr><td>Cross-entropy</td><td data-m="ce"></td><td>${L('loss khi train, trung bình trên mọi pixel', 'the training loss, averaged over every pixel')}</td></tr>
+    <tr><td>Dice</td><td data-m="dice"></td><td>${L('chỉ đếm phần dương: 1 là trùng khít', 'counts only the positives: 1 is a perfect match')}</td></tr>
+    <tr><td>IoU</td><td data-m="iou"></td><td>${L('luôn thấp hơn Dice: IoU = D / (2 − D)', 'always below Dice: IoU = D / (2 − D)')}</td></tr>
+    <tr><td>HD95</td><td data-m="hd95"></td><td>${L('khoảng cách giữa hai đường biên, 0 là trùng', 'the distance between the two boundaries, 0 is a match')}</td></tr>
+  </table></div>
+  <p class="reading"><span class="seg-share"></span></p>
+  <p class="kids-hint" style="margin-top: 12px">${L('Cạm bẫy khi chấm điểm phân vùng (Metrics Reloaded):', 'Pitfalls when scoring a segmentation (Metrics Reloaded):')}</p>
+  <ul class="seg-traps">
+    <li>${L(`<b>Mất cân bằng lớp.</b> Đoán toàn nền: ${segFmt.acc(miss.acc)} pixel đúng, cross-entropy chỉ ${segFmt.ce(miss.ce)}, nhưng Dice bằng 0. Cross-entropy còn chấm cách bỏ sót hẳn tổn thương nhỏ này tốt hơn một dự đoán tổn thương bán kính 16 px chỉ lệch 2 px (${segFmt.ce(b.ce)}, Dice ${segFmt.dice(b.dice)}).`,
+      `<b>Class imbalance.</b> Predicting background everywhere: ${segFmt.acc(miss.acc)} of pixels right, cross-entropy only ${segFmt.ce(miss.ce)}, yet Dice is 0. Cross-entropy even scores missing this small lesion entirely as better than a 16 px lesion found 2 px off (${segFmt.ce(b.ce)}, Dice ${segFmt.dice(b.dice)}).`)}</li>
+    <li>${L(`<b>Cấu trúc nhỏ.</b> Cùng lệch 2 px: tổn thương bán kính 4 px còn Dice ${segFmt.dice(a.dice)}, bán kính 16 px còn ${segFmt.dice(b.dice)}. Đừng so Dice giữa những cấu trúc to nhỏ khác nhau.`,
+      `<b>Small structures.</b> The same 2 px shift: a 4 px lesion keeps Dice ${segFmt.dice(a.dice)}, a 16 px one keeps ${segFmt.dice(b.dice)}. Don't compare Dice across structures of different sizes.`)}</li>
+    <li>${L(`<b>Dice không thấy lỗi nằm ở đâu.</b> Một đốm báo nhầm ở góc ảnh chỉ kéo Dice từ 1 xuống ${segFmt.dice(c.dice)}, nhưng HD95 nhảy lên ${segFmt.hd95(c.hd95)}. Nên báo thêm một metric đo đường biên như HD95.`,
+      `<b>Dice does not see where an error is.</b> A false alarm in the corner only takes Dice from 1 to ${segFmt.dice(c.dice)}, but HD95 jumps to ${segFmt.hd95(c.hd95)}. Report a boundary metric such as HD95 as well.`)}</li>
+    <li>${L('<b>Ảnh không có tổn thương.</b> Dice thành 0/0 và HD95 không xác định. Bỏ ảnh đó, cho 1 hay cho 0 đều đổi hẳn điểm trung bình, nên phải nói rõ đã chọn cách nào.',
+      '<b>Images with no lesion.</b> Dice becomes 0/0 and HD95 is undefined. Dropping such images, scoring them 1 or scoring them 0 each moves the average a lot, so say which was done.')}</li>
+  </ul></section>`;
+};
+function segRefresh() {
+  const sec = panel.querySelector('section.seg');
+  if (sec) {
+    const s = segNow(), lesion = s.G.reduce((a, b) => a + b, 0);
+    for (const k of ['r', 'shift']) { sec.querySelector(`#seg-${k}`).value = seg[k]; sec.querySelector(`#o-seg-${k}`).textContent = seg[k] + ' px'; }
+    for (const k of ['none', 'blob']) sec.querySelector(`[data-segdo="${k}"]`).setAttribute('aria-pressed', String(seg[k]));
+    for (const k in segFmt) sec.querySelector(`[data-m="${k}"]`).textContent = segFmt[k](s.m[k]);
+    sec.querySelector('.seg-share').textContent = L(`Tổn thương: ${lesion} trên ${s.N * s.N} pixel (${(100 * lesion / (s.N * s.N)).toFixed(1)}% ảnh).`, `The lesion: ${lesion} of ${s.N * s.N} pixels (${(100 * lesion / (s.N * s.N)).toFixed(1)}% of the image).`);
+    sec.querySelector('#seg-view').getContext('2d').drawImage(segImage(), 0, 0);
+  }
+  if (showsDemo(level, 'seg')) paintLive(level);
+}
+function segDo(a) {
+  if (a === 'ok') Object.assign(seg, { shift: 0, blob: false, none: false });
+  else seg[a] = !seg[a];
+  segRefresh();
+}
+
 panel.addEventListener('change', e => {
   if (e.target.id === 'live-causal') live.causal = e.target.checked;
   else if (e.target.id === 'live-scale') live.scale = e.target.checked;
@@ -1508,6 +1585,7 @@ panel.addEventListener('click', e => {
   else if (b.dataset.lab) labAction(b.dataset.lab);
   else if (b.dataset.smpdo) smpDo(b.dataset.smpdo);
   else if (b.dataset.cnndo || b.dataset.cnnsample) cnnDo(b);
+  else if (b.dataset.segdo) segDo(b.dataset.segdo);
   else if (b.dataset.ctpreset) { Object.assign(ct, CT.PRESETS[b.dataset.ctpreset]); ctRefresh(); }
   else if (b.dataset.labset) labSet(b.dataset.labset, b.dataset.val);
   else if (b.dataset.act === 'link') copyLink(b);

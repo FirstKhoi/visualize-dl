@@ -115,15 +115,17 @@ logits = nn.Conv2d(64, 2, 1)(d1)              # 2×388×388`
   { ...n('Conv 1×1 → 2 lớp', 'conv', '64×388×388 → 2×388×388', {
     what: 'Conv 1×1 biến 64 kênh ở mỗi pixel thành 2 điểm số: tế bào hay nền (đường viền), rồi softmax theo từng pixel.',
     formula: [R`a(x) = W h(x) + b, \qquad W \in \mathbb{R}^{2 \times 64}`, R`w(x) = w_c(x) + w_0 \exp\!\left(-\frac{\big(d_1(x) + d_2(x)\big)^2}{2\sigma^2}\right), \qquad w_0 = 10,\ \sigma \approx 5`,
-      R`\mathrm{DSC} = \frac{2\,|P \cap G|}{|P| + |G|}`, R`\mathrm{IoU} = \frac{|P \cap G|}{|P \cup G|} = \frac{\mathrm{DSC}}{2 - \mathrm{DSC}}`],
+      R`\mathrm{DSC} = \frac{2\,|P \cap G|}{|P| + |G|}`, R`\mathrm{IoU} = \frac{|P \cap G|}{|P \cup G|} = \frac{\mathrm{DSC}}{2 - \mathrm{DSC}}`,
+      R`\mathrm{HD95}(P, G) = \max\Big(\, Q_{95}\big\{ d(p, \partial G) \big\}_{p \in \partial P},\ Q_{95}\big\{ d(g, \partial P) \big\}_{g \in \partial G} \Big)`],
     why: R`Các tế bào nằm sát nhau chỉ cách bởi một đường nền rất mảnh. Bản đồ trọng số \(w(x)\) phạt nặng lỗi ở những pixel nền nằm giữa hai tế bào gần nhau (\(d_1, d_2\) là khoảng cách tới tế bào gần nhất và gần nhì), buộc mạng học tách chúng ra. \(w_c\) cân bằng tần suất hai lớp. Để chấm kết quả phân vùng, các bài y khoa thường dùng hệ số Dice (DSC) giữa vùng dự đoán \(P\) và vùng nhãn \(G\): nó chỉ đếm phần dương, nên phần nền chiếm gần hết ảnh không làm đẹp số được như độ chính xác từng pixel. Khối u chiếm 1% ảnh thì đoán toàn nền đã được 99% độ chính xác pixel, nhưng DSC = 0. V-Net dùng chính Dice (bản mềm, xác suất thay cho 0/1) làm hàm loss.`,
     example: R`Dự đoán 4 pixel là tế bào, nhãn thật có 5 pixel, trùng nhau 3: \(\mathrm{DSC} = 2 \cdot 3 / (4 + 5) = 0.667\), \(\mathrm{IoU} = 3 / (4 + 5 - 3) = 0.5\). Bảng 2 của bài tổng quan ảnh y khoa (Mienye và cộng sự, 2025): U-Net phân vùng tổn thương sụn khớp trên MRI đạt DSC 92% (Wirth và cộng sự).`,
     params: R`\(64 \times 2 + 2 = 130\).`,
     code: `logits = nn.Conv2d(64, 2, kernel_size=1)(d1)                     # (B, 2, 388, 388)
 loss = (w * F.cross_entropy(logits, target, reduction="none")).sum()
 pred = logits.argmax(1) == 1                                       # chấm điểm: Dice với nhãn gt
-dice = 2 * (pred & gt).sum() / (pred.sum() + gt.sum())`
-  }, { tag: 'Conv 1×1', size: [0.12, sp(388), sp(388)], ref: [ref('unet', 'mục 3, bản đồ trọng số'), ref('vnet', 'Dice làm hàm loss'), ref('mienye', 'Bảng 2: DSC')] }), pos: [12.2, Y[0], 0] },
+dice = 2 * (pred & gt).sum() / (pred.sum() + gt.sum())
+# HD95 như MONAI: monai.metrics.compute_hausdorff_distance(pred_onehot, gt_onehot, percentile=95)`
+  }, { tag: 'Conv 1×1', live: 'seg', size: [0.12, sp(388), sp(388)], ref: [ref('unet', 'mục 3, bản đồ trọng số'), ref('vnet', 'Dice làm hàm loss'), ref('mienye', 'Bảng 2: DSC'), ref('metricsreloaded', 'chọn metric theo bài toán'), ref('pitfalls', 'cạm bẫy của metric')] }), pos: [12.2, Y[0], 0] },
   // added after the paper's blocks, so the links to those (#unet.i.j) keep their numbers
   { ...n('Cửa sổ HU (tiền xử lý CT)', 'norm', '1×512×512 (HU) → 1×512×512 ∈ [0, 1]', {
     what: 'Bước đầu tiên khi đưa ảnh CT vào U-Net, thay cho ảnh kính hiển vi của bài gốc. Mỗi pixel CT là một số Hounsfield (HU), đo mức cản tia X so với nước: không khí là −1000 và nước là 0 theo định nghĩa, mỡ khoảng −100, mô mềm vài chục, xương đặc từ khoảng +1000 trở lên. Cửa sổ chọn một khoảng HU, từ L − W/2 tới L + W/2, rồi trải nó lên thang xám 0…1: thấp hơn thành đen, cao hơn thành trắng.',

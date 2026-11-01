@@ -69,6 +69,8 @@ const PAPER = {
   mienye: ['Mienye và cộng sự (2025), Deep Convolutional Neural Networks in Medical Image Analysis: A Review', 'https://doi.org/10.3390/info16030195'],
   swin: ['Liu và cộng sự (2021), Swin Transformer: Hierarchical Vision Transformer using Shifted Windows', 'https://arxiv.org/abs/2103.14030'],
   swinunet: ['Cao và cộng sự (2021), Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation', 'https://arxiv.org/abs/2105.05537'],
+  metricsreloaded: ['Maier-Hein và cộng sự (2024), Metrics reloaded: recommendations for image analysis validation', 'https://doi.org/10.1038/s41592-023-02151-z'],
+  pitfalls: ['Reinke và cộng sự (2024), Understanding metric-related pitfalls in image analysis validation', 'https://doi.org/10.1038/s41592-023-02150-0'],
   hounsfield: ['Radiopaedia, Hounsfield unit', 'https://radiopaedia.org/articles/hounsfield-unit'],
   ctwindow: ['Radiopaedia, Windowing (CT)', 'https://radiopaedia.org/articles/windowing-ct'],
   swinunetr: ['Hatamizadeh và cộng sự (2022), Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images', 'https://arxiv.org/abs/2201.01266'],

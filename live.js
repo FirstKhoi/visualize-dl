@@ -451,3 +451,50 @@ const CT = (() => {
   console.assert(gray(-600, 1500, -600) === 0.5 && gray(-100, 400, 40) === 0.15 && gray(1000, 400, 40) === 1 && gray(-1000, 400, 40) === 0, 'CT window mismatch');
   return { TISSUES, PRESETS, gray, slice };
 })();
+
+// Segmentation metrics on a toy mask: cross-entropy, Dice, IoU and HD95, and why a small lesion makes them disagree.
+// Masks are Uint8Array(N·N), row by row; probabilities are arrays of the same length.
+const SEG = (() => {
+  const count = m => m.reduce((a, b) => a + b, 0);
+  const inter = (P, G) => P.reduce((a, p, i) => a + (p && G[i] ? 1 : 0), 0);
+  const dice = (P, G) => 2 * inter(P, G) / (count(P) + count(G)); // 0 / 0 = NaN when there is nothing to find
+  const iou = (P, G) => inter(P, G) / (count(P) + count(G) - inter(P, G));
+  const EPS = 1e-7, clamp = p => Math.min(1 - EPS, Math.max(EPS, p));
+  const bce = (prob, G) => prob.reduce((a, p, i) => a - (G[i] ? Math.log(clamp(p)) : Math.log(1 - clamp(p))), 0) / prob.length;
+  const softDice = (prob, G) => 2 * prob.reduce((a, p, i) => a + p * G[i], 0) / (prob.reduce((a, p) => a + p, 0) + count(G));
+  // NumPy's default percentile: linear interpolation between the two nearest ranks
+  function percentile(values, q) {
+    const a = [...values].sort((x, y) => x - y), h = (a.length - 1) * q / 100, lo = Math.floor(h);
+    return lo + 1 < a.length ? a[lo] + (h - lo) * (a[lo + 1] - a[lo]) : a[lo];
+  }
+  // pixels of the mask with a 4-neighbour outside it or outside the image (what MONAI gets from a binary erosion)
+  function boundary(m, N) {
+    const out = [], on = (x, y) => x >= 0 && y >= 0 && x < N && y < N && m[y * N + x];
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++)
+      if (on(x, y) && !(on(x - 1, y) && on(x + 1, y) && on(x, y - 1) && on(x, y + 1))) out.push([x, y]);
+    return out;
+  }
+  // 95th percentile Hausdorff distance, in pixels, as MONAI computes it: the 95th percentile of the distances from each
+  // boundary pixel of one mask to the nearest boundary pixel of the other, taken both ways, then the larger of the two
+  function hd95(P, G, N) {
+    const a = boundary(P, N), b = boundary(G, N);
+    if (!a.length || !b.length) return NaN; // an empty mask has no boundary: the distance is undefined
+    const directed = (from, to) => percentile(from.map(([x, y]) => Math.min(...to.map(([u, v]) => Math.hypot(x - u, y - v)))), 95);
+    return Math.max(directed(a, b), directed(b, a));
+  }
+  // a disc of radius r around (cx, cy), on pixel centers
+  const disc = (N, cx, cy, r) => Uint8Array.from({ length: N * N }, (_, i) => ((i % N + 0.5 - cx) ** 2 + (Math.floor(i / N) + 0.5 - cy) ** 2 <= r * r ? 1 : 0));
+
+  // the panel's scene: a round lesion of radius r in a 64×64 image, and a confident network (0.9 inside what it marks,
+  // 0.01 elsewhere) that marks the same disc moved by `shift` px, plus a stray spot if `blob`, or nothing if `none`
+  function scene({ N = 64, r = 4, shift = 0, blob = false, none = false } = {}) {
+    const G = disc(N, 32, 32, r), spot = disc(N, 56, 8, 2), mark = disc(N, 32 + shift, 32, r).map((v, i) => !none && (v || blob && spot[i]) ? 1 : 0);
+    const prob = Float64Array.from(mark, v => v ? 0.9 : 0.01), P = mark;
+    const m = { ce: bce(prob, G), acc: P.reduce((a, p, i) => a + (p === G[i] ? 1 : 0), 0) / P.length, dice: dice(P, G), iou: iou(P, G), hd95: hd95(P, G, N), softDice: softDice(prob, G) };
+    return { N, G, P, prob, m };
+  }
+
+  const s = scene({ none: true }).m;
+  console.assert(percentile([1, 2, 3, 4], 95) === 3.85 && s.dice === 0 && s.ce < 0.07 && s.acc > 0.98, 'segmentation metrics mismatch');
+  return { dice, iou, bce, softDice, percentile, boundary, hd95, disc, scene };
+})();
