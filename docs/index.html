@@ -52,7 +52,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 .app { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); height: 100%; }
 .stage { position: relative; min-width: 0; overflow: hidden; }
 .stage canvas { display: block; touch-action: none; }
-.labels { position: absolute; inset: 0; pointer-events: none; }
+.labels { position: absolute; inset: 0; pointer-events: none; isolation: isolate; } /* CSS2DRenderer gives each label a z-index up to the label count: keep those inside the 3D view, under the home page */
 
 .top { position: absolute; top: 14px; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
 .top > * { pointer-events: auto; }

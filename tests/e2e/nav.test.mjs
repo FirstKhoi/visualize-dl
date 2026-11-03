@@ -31,6 +31,27 @@ test('without a link the page opens on a home page; a step of a learning path op
   await page.context().close();
 });
 
+// CSS2DRenderer gives every 3D label its own z-index (up to the number of labels): the labels nearest the camera
+// stayed on top of the home page after going back to it
+test('back on the home page, no label of the 3D view shows over it', async () => {
+  const page = await app.open('');
+  await page.click('#home a:text-is("DenseNet-121")');
+  await until(page, 'DenseNet-121');
+  await page.waitForTimeout(700);
+  await page.goBack();
+  await page.waitForFunction(() => !document.getElementById('home').hidden);
+  const onTop = await page.evaluate(() => [...document.querySelectorAll('#view .tag-anchor > *, #view .link-tag')].filter(t => {
+    document.querySelector('.app').inert = false; // hit-testing skips inert elements, which would hide a label painted on top
+
+    const r = t.getBoundingClientRect();
+    if (!r.width || r.bottom < 0 || r.top > innerHeight) return false;
+    return !document.getElementById('home').contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  }).map(t => t.textContent));
+  assert.deepEqual(onTop, []);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
 test('old links keep opening the same blocks', async () => {
   for (const [link, name] of [['transformer.2.0.2', 'Scaled Dot-Product Attention'], ['unet.10', 'Conv 1×1 → 2 lớp'], ['llm.5', 'Lấy mẫu token kế'], ['transformer', 'Transformer']]) {
     const page = await app.open('#' + link);
